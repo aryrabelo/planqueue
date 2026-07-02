@@ -130,7 +130,7 @@ async function browseNotes(
 		(n) => n.path !== currentNotePath && n.preview.length > 0,
 	);
 	if (others.length === 0) {
-		ctx.ui.notify("No notes from other sessions yet", "info");
+		ctx.ui.notify("No PlanQueue entries from other sessions yet", "info");
 		return;
 	}
 	const byLabel = new Map<string, NoteSummary>();
@@ -143,7 +143,10 @@ async function browseNotes(
 		byLabel.set(label, n);
 		return { label, description: n.sessionId };
 	});
-	const picked = await ctx.ui.select("Notes from other sessions", options);
+	const picked = await ctx.ui.select(
+		"PlanQueue \u2014 other sessions",
+		options,
+	);
 	const note = picked === undefined ? undefined : byLabel.get(picked);
 	if (note === undefined) return;
 	const text = await loadNote(note.path);
@@ -171,10 +174,24 @@ async function runGit(
 	}
 }
 
+/** Flush pending note saves, swallowing write failures so lifecycle handlers still proceed. */
+async function safeFlush(
+	pi: ExtensionAPI,
+	saver: DebouncedSaver | undefined,
+): Promise<void> {
+	try {
+		await saver?.flush();
+	} catch (err) {
+		pi.logger.error(
+			`[free-text] note flush failed: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+}
+
 /** Build the themed widget styler mirroring OMP's HUD widgets (bold title, `└` tree hook, 2-space indent). */
 function widgetStyle(theme: Theme): WidgetStyle {
 	return {
-		title: theme.bold(theme.fg("accent", "Notes")),
+		title: theme.bold(theme.fg("accent", "PlanQueue")),
 		hook: theme.tree.hook,
 		indent: "  ",
 		hint: (t: string): string => theme.fg("dim", t),
@@ -218,9 +235,15 @@ async function applyEditorResult(
 
 /** Load global shortcut overrides (config is not per repo/branch); log any warnings. */
 async function loadShortcuts(pi: ExtensionAPI): Promise<ShortcutConfig> {
-	const { shortcuts, warnings } = parseShortcutConfig(
-		await loadConfigText(configPathFor(homedir())),
-	);
+	let raw = "";
+	try {
+		raw = await loadConfigText(configPathFor(homedir()));
+	} catch (err) {
+		pi.logger.warn(
+			`[free-text] could not read config.json: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+	const { shortcuts, warnings } = parseShortcutConfig(raw);
 	for (const w of warnings) pi.logger.warn(`[free-text] ${w}`);
 	return shortcuts;
 }
@@ -338,15 +361,25 @@ function registerMakeNoteTool(
 					],
 				};
 			}
+			const count = params.steps.filter(
+				(s) => s.prompt.trim().length > 0,
+			).length;
+			if (count === 0) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: "No prompts to write: every step was empty.",
+						},
+					],
+				};
+			}
 			let base = deps.content();
 			if (params.heading) {
 				const h = `# ${params.heading}`;
 				base = base.trim() === "" ? h : `${h}\n\n${base}`;
 			}
 			await deps.persist(ctx, appendQueue(base, params.steps));
-			const count = params.steps.filter(
-				(s) => s.prompt.trim().length > 0,
-			).length;
 			return {
 				content: [
 					{ type: "text", text: `Wrote ${count} prompt(s) to the note queue.` },
@@ -376,8 +409,9 @@ function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 				? deps.persist(ctx, appendTask(deps.content(), args))
 				: deps.openEditor(ctx),
 	});
-	pi.registerCommand("notes", {
-		description: "Browse notes from other sessions in this repo/branch",
+	pi.registerCommand("planqueue", {
+		description:
+			"Browse PlanQueue entries from other sessions in this repo/branch",
 		handler: (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
 			const dir = deps.sessionsDir();
 			return ctx.hasUI && dir !== undefined
@@ -452,10 +486,17 @@ export default async function freeTextExtension(
 		historyPath = historyPathFor(loc, homedir());
 		sessionsDir = sessionsDirFor(loc, homedir());
 		legacySessionsDir = legacySessionsDirFor(loc, homedir());
-		content = await loadNoteWithFallback(
-			notePath,
-			legacyNotePathFor(loc, homedir()),
-		);
+		try {
+			content = await loadNoteWithFallback(
+				notePath,
+				legacyNotePathFor(loc, homedir()),
+			);
+		} catch (err) {
+			pi.logger.error(
+				`[free-text] could not load note ${notePath}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+			content = "";
+		}
 		const path = notePath;
 		saver = createDebouncedSaver((c) => saveNote(path, c));
 		refreshWidget(ctx);
@@ -467,8 +508,15 @@ export default async function freeTextExtension(
 		content = next;
 		saver?.schedule(content);
 		refreshWidget(ctx);
-		if (changed && historyPath !== undefined)
-			await appendHistory(historyPath, content);
+		if (changed && historyPath !== undefined) {
+			try {
+				await appendHistory(historyPath, content);
+			} catch (err) {
+				pi.logger.error(
+					`[free-text] history append failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}
 	}
 
 	async function openEditor(ctx: ExtensionContext): Promise<void> {
@@ -507,17 +555,17 @@ export default async function freeTextExtension(
 	pi.on("session_start", (_event, ctx) => initSession(ctx));
 
 	pi.on("session_switch", async (_event, ctx) => {
-		await saver?.flush();
+		await safeFlush(pi, saver);
 		await initSession(ctx);
 	});
 
 	pi.on("session_shutdown", async () => {
-		await saver?.flush();
+		await safeFlush(pi, saver);
 	});
 
 	// Bootstrap: when the first turn settles and the note is still empty, ask the
 	// agent to populate it with a heading and suggested follow-up tasks.
-	pi.on("session_stop", (_event, ctx) => {
+	pi.on("session_stop", (_event, _ctx) => {
 		if (bootstrapped || content.trim() !== "") return;
 		bootstrapped = true;
 		pi.sendUserMessage(
@@ -531,7 +579,12 @@ export default async function freeTextExtension(
 
 	pi.registerShortcut(shortcuts.editNotes as KeyId, {
 		description: "Edit free-text session notes",
-		handler: (ctx: ExtensionContext): Promise<void> => openEditor(ctx),
+		handler: (ctx: ExtensionContext): Promise<void> =>
+			openEditor(ctx).catch((err: unknown): void =>
+				pi.logger.error(
+					`[free-text] edit-notes shortcut failed: ${err instanceof Error ? err.message : String(err)}`,
+				),
+			),
 	});
 
 	registerNoteCommands(pi, {

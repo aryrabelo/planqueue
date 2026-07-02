@@ -44,15 +44,19 @@ function turnFailed(event: SessionStopEvent): boolean {
 async function pingHerdr(pi: ExtensionAPI, label: string): Promise<void> {
 	if (process.env.HERDR_ENV !== "1") return;
 	try {
-		await pi.exec("herdr", [
-			"notification",
-			"show",
-			"Queue paused - your turn",
-			"--body",
-			label,
-			"--sound",
-			"request",
-		]);
+		await pi.exec(
+			"herdr",
+			[
+				"notification",
+				"show",
+				"Queue paused - your turn",
+				"--body",
+				label,
+				"--sound",
+				"request",
+			],
+			{ timeout: 2000 },
+		);
 	} catch {
 		// Best-effort: a missing/older herdr must never break the session.
 	}
@@ -210,11 +214,21 @@ export function createQueue(deps: QueueDeps): QueueController {
 	pi.registerShortcut(deps.shortcuts.queueStep as KeyId, {
 		description:
 			"Queue: send the next note line (delete a --- barrier to pass it)",
-		handler: (ctx: ExtensionContext): Promise<void> => step(ctx),
+		handler: (ctx: ExtensionContext): Promise<void> =>
+			step(ctx).catch((err: unknown): void =>
+				pi.logger.error(
+					`[free-text] queue-step failed: ${err instanceof Error ? err.message : String(err)}`,
+				),
+			),
 	});
 	pi.registerShortcut(deps.shortcuts.queueToggleAuto as KeyId, {
 		description: "Queue: toggle auto-run of the note lines",
-		handler: (ctx: ExtensionContext): Promise<void> => toggle(ctx),
+		handler: (ctx: ExtensionContext): Promise<void> =>
+			toggle(ctx).catch((err: unknown): void =>
+				pi.logger.error(
+					`[free-text] queue-toggle failed: ${err instanceof Error ? err.message : String(err)}`,
+				),
+			),
 	});
 
 	return {

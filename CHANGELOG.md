@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Prompt queue replaced the strikethrough (`~~...~~`) record model with the checkbox state machine: dispatch marks the head `- [>]`, each agent settle completes the in-flight line to `- [x]`, and auto-run feeds the next pending task; a `---` barrier or a failed/aborted turn halts auto-run.
 - `/note <text>` now appends `<text>` as a pending `- [ ]` queue line to the current note instead of ignoring the argument; bare `/note` still opens the editor.
+- Widget title and `/notes` command renamed to `PlanQueue`/`/planqueue` (technical package/repo name unchanged).
 
 ### Fixed
 

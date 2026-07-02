@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-000000.svg?logo=bun)](https://bun.sh)
 
-An OMP (Oh My Pi) extension that gives you a free-text session-notes panel below the status line, persisted per repo, branch, and session — and doubles the note as a FIFO prompt queue you can drip-feed to the agent.
+An OMP (Oh My Pi) extension that gives you **PlanQueue** — a free-text session-notes panel below the status line, persisted per repo, branch, and session — and doubles the note as a FIFO prompt queue you can drip-feed to the agent.
 
 If this is useful to you, please ⭐ the repo — it helps others find it.
 
@@ -30,7 +30,7 @@ If this is useful to you, please ⭐ the repo — it helps others find it.
 
 - Shows a notes panel directly below the status line. It is a read-only preview: the note body followed by a dimmed hint that reads `(Ctrl+N · Ctrl+↓ queue · Ctrl+Shift+↓ auto)` by default (a trailing `▶` marks the toggle key while auto-run is on). The hint reflects your configured keys.
 - Lets you edit notes with the `Ctrl+N` keyboard shortcut or the `/note` slash command, which opens a multi-line editor (Enter saves, Shift+Enter newline, Esc closes with a save/discard confirm). `/note <text>` appends `<text>` straight to the queue without opening the editor.
-- Lets you browse notes from your other sessions with `/notes`.
+- Lets you browse notes from your other sessions with `/planqueue`.
 - Doubles the note as a prompt queue of markdown checkbox tasks: `Ctrl+↓` dispatches the head task and the panel shows its state as a glyph — `☐` pending, `▸` in-flight, `✓` done — while `Ctrl+Shift+↓` toggles auto-run (default keys — rebindable, see [Configurable shortcuts](#configurable-shortcuts)).
 - Copies the whole note to your system clipboard with `Alt+Shift+C` (OSC 52, works locally and over SSH).
 - Lets the agent add tasks to your note itself via the `note_add` tool — say "coloca na nota ..." and it appends a `- [ ]` line.
@@ -73,7 +73,7 @@ Press `Ctrl+N` or type `/note` to open the editor. Type freely, then close or su
 
 ### Browse other sessions
 
-Type `/notes` to open a keyboard picker listing notes from your **other** sessions in the same repo and branch. Choose one to open it in a read-only viewer — handy for pulling context from a parallel or earlier session without leaving the current one.
+Type `/planqueue` to open a keyboard picker listing notes from your **other** sessions in the same repo and branch. Choose one to open it in a read-only viewer — handy for pulling context from a parallel or earlier session without leaving the current one.
 
 ### Prompt queue
 
@@ -116,7 +116,7 @@ Omit the file (or any key) to keep the defaults shown above. A missing or malfor
 
 ## Storage
 
-Each session gets its own markdown file under `~/.free-text/`, organized by repo and branch. The files are plain markdown, so you can read or edit them directly. Every changed save (including discarded drafts) is also appended to a sibling `{session-id}.history.md` file, giving you an append-only history of the note. Notes saved before the root migration live under the legacy `~/.omp-free-text/` root; they are still read back (active session and the `/notes` browser) but new writes always go to `~/.free-text/`.
+Each session gets its own markdown file under `~/.free-text/`, organized by repo and branch. The files are plain markdown, so you can read or edit them directly. Every changed save (including discarded drafts) is also appended to a sibling `{session-id}.history.md` file, giving you an append-only history of the note. Notes saved before the root migration live under the legacy `~/.omp-free-text/` root; they are still read back (active session and the `/planqueue` browser) but new writes always go to `~/.free-text/`.
 
 ## Development
 
