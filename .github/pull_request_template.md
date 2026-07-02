@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to @aryrabelo/omp-free-text! Keep PRs focused on one change. -->
+<!-- Thanks for contributing to PlanQueue! Keep PRs focused on one change. -->
 
 ## What does this change?
 
@@ -14,6 +14,7 @@
 
 ## Checklist
 
+- [ ] `bun run lint` passes
 - [ ] `bun run typecheck` passes
 - [ ] `bun test` passes
 - [ ] README / CHANGELOG updated if behavior changed

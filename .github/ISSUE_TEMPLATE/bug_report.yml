@@ -41,7 +41,7 @@ body:
   - type: input
     id: extension-version
     attributes:
-      label: Extension version or commit
+      label: PlanQueue version or commit
       placeholder: "e.g. 0.1.0 or a commit SHA"
     validations:
       required: false
@@ -56,6 +56,6 @@ body:
     id: extra
     attributes:
       label: Anything else?
-      description: Logs, screenshots, your `~/.omp-free-text/config.json`, or whether you run inside Herdr (HERDR_ENV=1).
+      description: Logs, screenshots, your `~/.planqueue/config.json` (legacy `~/.omp-free-text/config.json` is still read), or whether you run inside Herdr (HERDR_ENV=1).
     validations:
       required: false

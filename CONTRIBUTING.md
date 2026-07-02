@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in improving `@aryrabelo/omp-free-text`.
+Thanks for your interest in improving PlanQueue.
 
 ## Prerequisites
 

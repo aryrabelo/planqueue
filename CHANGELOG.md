@@ -5,55 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-07-02
+
+PlanQueue first public release: an OMP (Oh My Pi) extension that renders a
+free-text session-notes panel below the status line and turns that note into a
+FIFO prompt queue for coding agents.
 
 ### Added
 
-- Configurable keyboard shortcuts via a global `~/.omp-free-text/config.json` (`{ "shortcuts": { "editNotes", "queueStep", "queueToggleAuto" } }`). Defaults are unchanged (`ctrl+n` / `ctrl+down` / `ctrl+shift+down`); a missing or malformed entry falls back to its default and logs a warning. Rebind `queueToggleAuto` when your terminal does not emit a distinct `Ctrl+Shift+↓`. The widget hint now lists all three configured keys — e.g. `(Ctrl+N · Ctrl+↓ queue · Ctrl+Shift+↓ auto)` — so the auto-run toggle is discoverable in the terminal.
-- Checkbox task queue: note lines carry a markdown checkbox state — `- [ ]` pending, `- [>]` in-flight, `- [x]` done — rendered in the panel as north-style glyphs `☐`/`▸`/`✓`. Plain lines and `-` bullets auto-normalize to `- [ ]` on save, so you never type `[ ]` by hand; `#` headings and `>` quotes stay prose.
+- Notes panel below the status line, editable with `Ctrl+N` or `/note`, persisted per repo/branch/session under `~/.planqueue/{repo}/{branch}/{session-id}.md`.
+- Prompt queue over Markdown checkboxes — `- [ ]` pending, `- [>]` in-flight, `- [x]` done — rendered as panel glyphs `☐`/`▸`/`✓`. Plain lines and `-` bullets auto-normalize to `- [ ]` on save; `#` headings and `>` quotes stay prose.
+- `Ctrl+↓` dispatches the head pending task via `pi.sendUserMessage`; indented continuation lines are sent with their task as one multi-line prompt.
+- `---` human-in-the-loop barriers that pause the queue until you pass them.
+- `Ctrl+Shift+↓` auto-run, which feeds one queued line per agent settle, pauses at barriers, and halts on a failed or aborted turn. Inside Herdr (`HERDR_ENV=1`) it pings `herdr notification show` at each barrier.
+- `/planqueue` cross-session browser: a keyboard picker of notes from other sessions in the same repo/branch, opened in a read-only viewer.
+- `note_add` LLM tool: the agent appends a `- [ ]` task to the current note on request. `/make-note <goal>` plus the `make_note` LLM tool decompose a goal into a full prompt queue in one shot. `/note <text>` appends a single `- [ ]` task.
 - `Alt+Shift+C` copies the whole note buffer to the system clipboard via an OSC 52 escape (works locally and over SSH).
-- `note_add` LLM tool: the agent can append a `- [ ]` task to the bottom of the current note when you say things like "coloca na nota/lista", "add to the list", or "remember to ...". Auto-available in every session once installed — no separate skill install.
-- Indented continuation lines: lines indented under a prompt are sent together as one multi-line prompt (left-trimmed, newline-joined); a blank, non-indented, or `---` line ends the block. They stay verbatim in the note (never normalized into checkboxes) and render in the panel with a `┆` connector that inherits the parent task's color — so a pending block reads active (amber), an in-flight block accent, and a done block dim+strikethrough — making the whole multi-line prompt read as one task.
-- `/make-note <goal>` command and `make_note` LLM tool: `/make-note build the auth flow` asks the agent to decompose the goal into a sequential prompt queue and write it to the note. The agent calls `make_note`, which renders one `- [ ]` line per step, two-space-indented `details` as continuation lines sent with the prompt, and a `---` HITL barrier where `barrierAfter` is set — so a high-level goal becomes a ready-to-drain queue in one shot.
+- Append-only `{session-id}.history.md` sibling recording every changed save (including discarded drafts).
+- Configurable shortcuts via a global `~/.planqueue/config.json`; a missing or malformed entry falls back to its default and logs a warning.
+- Read-only fallback for existing users: notes and config under the legacy `~/.free-text/` and `~/.omp-free-text/` roots are still read; all new writes go to `~/.planqueue/`.
 
-### Changed
+### Prior history
 
-- Prompt queue replaced the strikethrough (`~~...~~`) record model with the checkbox state machine: dispatch marks the head `- [>]`, each agent settle completes the in-flight line to `- [x]`, and auto-run feeds the next pending task; a `---` barrier or a failed/aborted turn halts auto-run.
-- `/note <text>` now appends `<text>` as a pending `- [ ]` queue line to the current note instead of ignoring the argument; bare `/note` still opens the editor.
-- Widget title and `/notes` command renamed to `PlanQueue`/`/planqueue` (technical package/repo name unchanged).
+- Internal iterations preceding the public PlanQueue identity are not tracked here; `0.1.0` is the first release under this name.
 
-### Fixed
-
-- Auto-run now feeds each queued line as a real follow-up user message, so dispatched prompts appear in the transcript exactly as if you typed them (previously auto-fed lines were injected as an invisible `session_stop` continuation and only the replies showed). Manual `Ctrl+↓` steps were already visible. This also removes the ~8-line `SESSION_STOP_CONTINUATION_CAP` ceiling: a long queue now drains one visible turn at a time until a `---` barrier or a failed/aborted turn halts it.
-- The human-in-the-loop pause now shows how to resume: the widget hint appends an explicit unlock instruction naming the queue-step key (e.g. `⏸ paused — Ctrl+↓ passes ---`) and the pause notification names it too. The blocked state is tracked everywhere, not only inside Herdr.
-
-## [0.2.0] - 2026-06-23
-
-### Changed
-
-- The plugin's pure logic (config, editor, paths, queue, store, widget) is now sourced from the shared [`@aryrabelo/free-text-core`](https://github.com/aryrabelo/free-text-core) package instead of local copies. No user-facing behavior changes — it is an internal architecture refactor so the same core powers every front-end.
-- The notes root moved from `~/.omp-free-text/` to `~/.free-text/`. New notes (and their `.history.md` siblings and `config.json`) now live under `~/.free-text/{repo}/{branch}/{session-id}.md`.
-
-### Migration
-
-- Non-destructive read-fallback to the legacy `~/.omp-free-text/` root: notes written before this release still load in the active session and still appear in the `/notes` cross-session browser. Nothing under `~/.omp-free-text/` is moved or deleted; only new writes go to `~/.free-text/`.
-
-> **Release task:** before publishing, change the `@aryrabelo/free-text-core` dependency in `package.json` from `file:../free-text-core` to the published `^0.1.0`.
-
-## [0.1.0] - 2026-06-18
-
-### Added
-
-- Free-text session-notes widget rendered in a bordered panel below the status line.
-- `Ctrl+N` / `/note` notes editor in the input slot (Enter saves, Shift+Enter newline, Esc closes with a save/discard confirm).
-- `/notes` cross-session browser: keyboard picker of notes from other sessions in the same repo/branch, opened in a read-only viewer.
-- Append-only `.history.md` sibling file recording every changed save (including discarded drafts).
-- Prompt queue: `Ctrl+↓` sends the first not-yet-struck note line to the agent and strikes it (`~~text~~`); a lone `---` line acts as a human-in-the-loop barrier; `Ctrl+Shift+↓` toggles auto-run, which feeds one queued line per agent settle and, inside Herdr (`HERDR_ENV=1`), pings the human with `herdr notification show ... --sound request` at each barrier.
-
-### Notes
-
-- Auto-run drains at most ~8 lines per continuation chain (OMP's `SESSION_STOP_CONTINUATION_CAP`), then pauses. Use `---` barriers to checkpoint longer queues.
-
-[Unreleased]: https://github.com/aryrabelo/omp-free-text/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/aryrabelo/omp-free-text/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/aryrabelo/omp-free-text/releases/tag/v0.1.0
+[0.1.0]: https://github.com/aryrabelo/planqueue/releases/tag/v0.1.0
