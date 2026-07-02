@@ -1,5 +1,5 @@
 /**
- * Queue controller for the free-text prompt queue (OMP-coupled).
+ * Queue controller for the PlanQueue prompt queue (OMP-coupled).
  *
  * The note IS the queue (lines read top-to-bottom; each task line carries its
  * state as a checkbox marker):
@@ -18,7 +18,7 @@ import {
 	markInflight,
 	removeBarrier,
 	type ShortcutConfig,
-} from "@aryrabelo/free-text-core";
+} from "@aryrabelo/planqueue-core";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -217,7 +217,7 @@ export function createQueue(deps: QueueDeps): QueueController {
 		handler: (ctx: ExtensionContext): Promise<void> =>
 			step(ctx).catch((err: unknown): void =>
 				pi.logger.error(
-					`[free-text] queue-step failed: ${err instanceof Error ? err.message : String(err)}`,
+					`[planqueue] queue-step failed: ${err instanceof Error ? err.message : String(err)}`,
 				),
 			),
 	});
@@ -226,7 +226,7 @@ export function createQueue(deps: QueueDeps): QueueController {
 		handler: (ctx: ExtensionContext): Promise<void> =>
 			toggle(ctx).catch((err: unknown): void =>
 				pi.logger.error(
-					`[free-text] queue-toggle failed: ${err instanceof Error ? err.message : String(err)}`,
+					`[planqueue] queue-toggle failed: ${err instanceof Error ? err.message : String(err)}`,
 				),
 			),
 	});

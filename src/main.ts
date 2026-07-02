@@ -1,15 +1,15 @@
 /**
- * @aryrabelo/omp-free-text
+ * @aryrabelo/planqueue
  *
- * OMP extension: a free-text session-notes panel below the status line.
+ * OMP extension: a PlanQueue session-notes panel below the status line.
  * - Shows the latest note in a widget below the editor via
  *   `ctx.ui.setWidget(..., { placement: "belowEditor" })`.
  * - Opens a multi-line editor on `Ctrl+N` or `/note`.
  * - Runs the note as a prompt queue: `Ctrl+down` sends the next line, a `---`
  *   line is a human-in-the-loop barrier, and `Ctrl+shift+down` toggles auto-run.
- * - Persists to `~/.free-text/{repo}/{branch}/{session-id}.md` (with a
- *   read-only fallback to the legacy `~/.omp-free-text/...` root for notes
- *   created before the root migration).
+ * - Persists to `~/.planqueue/{repo}/{branch}/{session-id}.md` (with a
+ *   read-only fallback chain through the legacy `~/.free-text/...` then
+ *   `~/.omp-free-text/...` roots for notes created before the root migration).
  */
 
 import { homedir } from "node:os";
@@ -21,10 +21,10 @@ import {
 	createDebouncedSaver,
 	type DebouncedSaver,
 	historyPathFor,
-	legacyNotePathFor,
-	legacySessionsDirFor,
+	legacyConfigPathsFor,
+	legacyNotePathsFor,
+	legacySessionsDirsFor,
 	listNotes,
-	loadConfigText,
 	loadNote,
 	loadNoteWithFallback,
 	type NoteSummary,
@@ -41,7 +41,7 @@ import {
 	saveNote,
 	sessionsDirFor,
 	type WidgetStyle,
-} from "@aryrabelo/free-text-core";
+} from "@aryrabelo/planqueue-core";
 import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
@@ -53,9 +53,10 @@ import type {
 	Theme,
 } from "@oh-my-pi/pi-coding-agent";
 import type { KeyId, TUI } from "@oh-my-pi/pi-tui";
+import type { ZodType } from "zod";
 import { createQueue } from "./queue-controller";
 
-const WIDGET_KEY = "free-text";
+const WIDGET_KEY = "planqueue";
 
 /** Outcome of the notes editor overlay: the buffer and how it was closed. */
 interface EditorResult {
@@ -107,25 +108,29 @@ function makeNotesEditor(
  * the notes editor, but its result is ignored, so browsing never changes the
  * current session's note.
  *
- * Notes from the legacy root (`~/.omp-free-text`) are merged in read-only for
- * back-compat, so sessions created before the root migration stay visible. A
- * session present at both roots keeps its new-root entry.
+ * Notes from the legacy roots (`~/.free-text` then `~/.omp-free-text`) are
+ * merged in read-only for back-compat, so sessions created before the root
+ * migration stay visible. A session present at more than one root keeps its
+ * newest-root entry (new root wins, then newest legacy).
  */
 async function browseNotes(
 	ctx: ExtensionContext,
 	sdk: ExtensionAPI["pi"],
 	sessionsDir: string,
 	currentNotePath: string | undefined,
-	legacySessionsDir?: string,
+	legacySessionsDirs?: readonly string[],
 ): Promise<void> {
 	const fresh = await listNotes(sessionsDir);
-	const legacy =
-		legacySessionsDir !== undefined ? await listNotes(legacySessionsDir) : [];
 	const seen = new Set(fresh.map((n) => n.sessionId));
-	const merged = [
-		...fresh,
-		...legacy.filter((n) => !seen.has(n.sessionId)),
-	].sort((a, b) => b.mtimeMs - a.mtimeMs);
+	const merged = [...fresh];
+	for (const dir of legacySessionsDirs ?? []) {
+		for (const n of await listNotes(dir)) {
+			if (seen.has(n.sessionId)) continue;
+			seen.add(n.sessionId);
+			merged.push(n);
+		}
+	}
+	merged.sort((a, b) => b.mtimeMs - a.mtimeMs);
 	const others = merged.filter(
 		(n) => n.path !== currentNotePath && n.preview.length > 0,
 	);
@@ -183,7 +188,7 @@ async function safeFlush(
 		await saver?.flush();
 	} catch (err) {
 		pi.logger.error(
-			`[free-text] note flush failed: ${err instanceof Error ? err.message : String(err)}`,
+			`[planqueue] note flush failed: ${err instanceof Error ? err.message : String(err)}`,
 		);
 	}
 }
@@ -237,14 +242,17 @@ async function applyEditorResult(
 async function loadShortcuts(pi: ExtensionAPI): Promise<ShortcutConfig> {
 	let raw = "";
 	try {
-		raw = await loadConfigText(configPathFor(homedir()));
+		raw = await loadNoteWithFallback(
+			configPathFor(homedir()),
+			legacyConfigPathsFor(homedir()),
+		);
 	} catch (err) {
 		pi.logger.warn(
-			`[free-text] could not read config.json: ${err instanceof Error ? err.message : String(err)}`,
+			`[planqueue] could not read config.json: ${err instanceof Error ? err.message : String(err)}`,
 		);
 	}
 	const { shortcuts, warnings } = parseShortcutConfig(raw);
-	for (const w of warnings) pi.logger.warn(`[free-text] ${w}`);
+	for (const w of warnings) pi.logger.warn(`[planqueue] ${w}`);
 	return shortcuts;
 }
 
@@ -258,11 +266,11 @@ function registerNoteAddTool(
 	},
 ): void {
 	const z = pi.zod;
-	pi.registerTool({
+	pi.registerTool<ZodType<{ text: string }>>({
 		name: "note_add",
 		label: "Add to note",
 		description:
-			'Append a task to the bottom of the current session\'s free-text note (the prompt queue). Use when the user asks to put/add/remember something on the note or list for later (e.g. "coloca na nota", "add to the list", "remember to ..."). Each item becomes a "- [ ]" checkbox.',
+			'Append a task to the bottom of the current session\'s PlanQueue note (the prompt queue). Use when the user asks to put/add/remember something on the note or list for later (e.g. "coloca na nota", "add to the list", "remember to ..."). Each item becomes a "- [ ]" checkbox.',
 		parameters: z.object({
 			text: z.string().describe("The task text to append (one line)."),
 		}),
@@ -294,7 +302,7 @@ function registerNoteAddTool(
 /** Meta-prompt asking the agent to decompose a goal into a prompt-queue plan and write it via the make_note tool. */
 function makeNotePrompt(goal: string): string {
 	return (
-		"Decompose this goal into a sequential prompt queue for my free-text note, then call the make_note tool to write it. " +
+		"Decompose this goal into a sequential prompt queue for my PlanQueue note, then call the make_note tool to write it. " +
 		"Each step is ONE prompt I will dispatch in order; put supporting detail in `details` (sent together with the prompt as one message); " +
 		"set `barrierAfter: true` only where you must pause for my review before the queue continues. " +
 		"Keep prompts concrete and self-contained.\n\nGoal: " +
@@ -312,11 +320,11 @@ function registerMakeNoteTool(
 	},
 ): void {
 	const z = pi.zod;
-	pi.registerTool({
+	pi.registerTool<ZodType<{ heading?: string; steps: QueueStep[] }>>({
 		name: "make_note",
 		label: "Make note plan",
 		description:
-			"Write a decomposed prompt-queue plan to the current session's free-text note (the prompt queue). Use after the /make-note command or when the user asks to turn a goal into a queue of prompts. Each step is ONE prompt dispatched in order; put supporting detail in `details` (sent with the prompt as one multi-line message); set `barrierAfter: true` only where the human must review before the queue continues (renders a `---` barrier). Prefer concrete, self-contained prompts.",
+			"Write a decomposed prompt-queue plan to the current session's PlanQueue note (the prompt queue). Use after the /make-note command or when the user asks to turn a goal into a queue of prompts. Each step is ONE prompt dispatched in order; put supporting detail in `details` (sent with the prompt as one multi-line message); set `barrierAfter: true` only where the human must review before the queue continues (renders a `---` barrier). Prefer concrete, self-contained prompts.",
 		parameters: z.object({
 			heading: z
 				.string()
@@ -394,7 +402,7 @@ interface NoteCommandDeps {
 	content: () => string;
 	notePath: () => string | undefined;
 	sessionsDir: () => string | undefined;
-	legacySessionsDir: () => string | undefined;
+	legacySessionsDirs: () => readonly string[] | undefined;
 	persist: (ctx: ExtensionContext, next: string) => Promise<void>;
 	openEditor: (ctx: ExtensionContext) => Promise<void>;
 }
@@ -403,7 +411,7 @@ interface NoteCommandDeps {
 function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 	pi.registerCommand("note", {
 		description:
-			"Edit free-text notes; `/note <text>` appends a prompt-queue line",
+			"Edit PlanQueue notes; `/note <text>` appends a prompt-queue line",
 		handler: (args: string, ctx: ExtensionCommandContext): Promise<void> =>
 			args.trim().length > 0
 				? deps.persist(ctx, appendTask(deps.content(), args))
@@ -420,7 +428,7 @@ function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 						pi.pi,
 						dir,
 						deps.notePath(),
-						deps.legacySessionsDir(),
+						deps.legacySessionsDirs(),
 					)
 				: Promise.resolve();
 		},
@@ -436,13 +444,13 @@ function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 	});
 }
 
-export default async function freeTextExtension(
+export default async function planQueueExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
 	let notePath: string | undefined;
 	let historyPath: string | undefined;
 	let sessionsDir: string | undefined;
-	let legacySessionsDir: string | undefined;
+	let legacySessionsDirs: readonly string[] | undefined;
 	let loc: ResolvedLocation | undefined;
 	let saver: DebouncedSaver | undefined;
 	let content = "";
@@ -451,7 +459,7 @@ export default async function freeTextExtension(
 	let bootstrapped = false;
 	const shortcuts = await loadShortcuts(pi);
 
-	pi.setLabel("Free Text Notes");
+	pi.setLabel("PlanQueue");
 
 	function refreshWidget(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
@@ -485,15 +493,15 @@ export default async function freeTextExtension(
 		notePath = notePathFor(loc, homedir());
 		historyPath = historyPathFor(loc, homedir());
 		sessionsDir = sessionsDirFor(loc, homedir());
-		legacySessionsDir = legacySessionsDirFor(loc, homedir());
+		legacySessionsDirs = legacySessionsDirsFor(loc, homedir());
 		try {
 			content = await loadNoteWithFallback(
 				notePath,
-				legacyNotePathFor(loc, homedir()),
+				legacyNotePathsFor(loc, homedir()),
 			);
 		} catch (err) {
 			pi.logger.error(
-				`[free-text] could not load note ${notePath}: ${err instanceof Error ? err.message : String(err)}`,
+				`[planqueue] could not load note ${notePath}: ${err instanceof Error ? err.message : String(err)}`,
 			);
 			content = "";
 		}
@@ -513,7 +521,7 @@ export default async function freeTextExtension(
 				await appendHistory(historyPath, content);
 			} catch (err) {
 				pi.logger.error(
-					`[free-text] history append failed: ${err instanceof Error ? err.message : String(err)}`,
+					`[planqueue] history append failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}
@@ -547,7 +555,7 @@ export default async function freeTextExtension(
 		content: () => content,
 		persist,
 		refresh: refreshWidget,
-		label: () => (loc ? `${loc.repo}/${loc.branch}` : "free-text queue"),
+		label: () => (loc ? `${loc.repo}/${loc.branch}` : "PlanQueue queue"),
 		editorOpen: () => editorOpen,
 		shortcuts,
 	});
@@ -578,11 +586,11 @@ export default async function freeTextExtension(
 	});
 
 	pi.registerShortcut(shortcuts.editNotes as KeyId, {
-		description: "Edit free-text session notes",
+		description: "Edit PlanQueue session notes",
 		handler: (ctx: ExtensionContext): Promise<void> =>
 			openEditor(ctx).catch((err: unknown): void =>
 				pi.logger.error(
-					`[free-text] edit-notes shortcut failed: ${err instanceof Error ? err.message : String(err)}`,
+					`[planqueue] edit-notes shortcut failed: ${err instanceof Error ? err.message : String(err)}`,
 				),
 			),
 	});
@@ -591,7 +599,7 @@ export default async function freeTextExtension(
 		content: () => content,
 		notePath: () => notePath,
 		sessionsDir: () => sessionsDir,
-		legacySessionsDir: () => legacySessionsDir,
+		legacySessionsDirs: () => legacySessionsDirs,
 		persist,
 		openEditor,
 	});
