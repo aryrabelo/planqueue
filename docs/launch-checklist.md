@@ -1,15 +1,17 @@
 # Launch checklist — going public
 
-Everything left before `@aryrabelo/omp-free-text` is public at
+Everything left before `@aryrabelo/planqueue` is public at
 [Tapa-standard](./open-source-standard.md) parity, plus how to publicize it.
 
-Source: a pre-launch review of the working tree, the live GitHub repo, and the
-OMP ecosystem.
+Source: the OPENSOURCE_PLAN.md rebrand plan, a review of the working tree, and
+the OMP ecosystem.
 
-**Bottom line:** zero code work blocks launch. The standard scorecard is 29/36
-(verified) and the gate is green (`bun run lint && bun run typecheck && bun test`
-→ 145 pass / 0 fail). What remains is GitHub settings + an npm publish + a few
-in-tree doc/asset fixes.
+**Bottom line:** the in-tree PlanQueue rebrand is done and the gate is green
+(`bun run lint && bun run typecheck && bun test`). What remains before public
+launch are the human gates — GitHub repo rename, npm publish of the core and the
+plugin, and cutting the `v0.1.0` tag/release — plus a demo asset. No prior
+release under the old identity is promoted; PlanQueue `v0.1.0` is the first
+public release.
 
 ## Legend
 
@@ -22,30 +24,30 @@ in-tree doc/asset fixes.
 
 ## 1. GitHub settings (🧑 human — none visible from the working tree)
 
-The live repo is the single biggest gap. Verified via `gh repo view` /
-`gh api` on 2026-06-22:
+These are HUMAN GATES — none are done yet; do them at launch after Ary approves.
 
-- [x] 🔴 🧑 **Flip repo to Public.** Done 2026-06-22 — `visibility: PUBLIC`.
-- [x] 🔴 🧑 **Set repo description.** Done — set to the package.json description.
-- [x] 🔴 🧑 **Add topics.** Done — 10 topics: `oh-my-pi`, `omp`, `coding-agent`,
-  `cli`, `developer-tools`, `tui`, `bun`, `notes`, `free-text`, `scratchpad`.
-- [x] 🔴 🧑 **Cut annotated `v0.1.0` tag + GitHub Release.** Done — tag pushed and
-  Release published:
-  <https://github.com/aryrabelo/omp-free-text/releases/tag/v0.1.0>.
-- [ ] 🟡 🧑 **Social-preview image.** Still owner-avatar fallback
-  (`usesCustomOpenGraphImage=false`). Needed for clean cards on X / dev.to /
-  Discord. Settings → Social preview. (Also closes the standard's only in-tree
-  banner gap — see §3.)
-- [ ] 🟡 🧑 **Set homepage URL** (optional) — repo `homepageUrl` is empty;
-  package.json has one.
+- [ ] 🔴 🧑 **Rename the GitHub repo to `planqueue`** (and the core repo to
+  `planqueue-core`). GitHub auto-redirects old URLs and remotes; stars/issues
+  carry over. Update the local git remote afterward.
+- [ ] 🔴 🧑 **Set repo description** to the package.json description.
+- [ ] 🔴 🧑 **Add topics:** `planqueue`, `prompt-queue`, `oh-my-pi`, `omp`,
+  `coding-agent`, `tui`, `bun`.
+- [ ] 🔴 🧑 **Cut an annotated `v0.1.0` tag + GitHub Release** on the PlanQueue
+  identity. Release notes lead with the prompt-queue hook; no old-identity
+  references.
+- [ ] 🟡 🧑 **Social-preview image** for clean cards on X / dev.to / Discord.
+  Settings → Social preview. (Also closes the standard's banner gap — see §3.)
+- [ ] 🟡 🧑 **Set homepage URL** — package.json has one; the repo `homepageUrl`
+  should match.
 
 ## 2. Distribution (🧑 human — needs npm creds)
 
-- [x] 🔴 🧑 **`npm publish --access public`** at `v0.1.0`. Done 2026-06-22 —
-  published as `@aryrabelo/omp-free-text@0.1.0`
-  (<https://www.npmjs.com/package/@aryrabelo/omp-free-text>). Second working
-  install path: `omp plugin install @aryrabelo/omp-free-text`. `src/AGENTS.md`
-  excluded from the tarball.
+- [ ] 🔴 🧑 **Publish `@aryrabelo/planqueue-core` to npm**, then repoint the
+  plugin dependency off the local `file:../planqueue-core` path. A `file:` path
+  breaks any public install — see [`distribution-release-plan.md`](./distribution-release-plan.md).
+- [ ] 🔴 🧑 **`npm publish --access public`** the plugin at `v0.1.0`, enabling the
+  second install path `omp plugin install @aryrabelo/planqueue`. Confirm the
+  tarball excludes `src/AGENTS.md`, `.claude`, and local state.
 - [ ] ⚠️ **Do NOT pursue the OMP marketplace.** This plugin delivers behavior via
   `omp.extensions`, which marketplace catalog installs **do not load** (they only
   surface skills/commands/agents/hooks). A marketplace listing would let users
@@ -58,7 +60,7 @@ The live repo is the single biggest gap. Verified via `gh repo view` /
   doc misdescribed the `tapa-rs` reference: claimed Tapa ships no weekly build
   (it ships `weekly.yml`), omitted Tapa's size-budget gate, and framed
   `THIRD-PARTY-LICENSES.md` as conditional when Tapa ships it as baseline. The
-  omp-free-text N/A verdicts stand; the justifications are corrected.
+  PlanQueue N/A verdicts stand; the justifications are corrected.
 - [ ] 🟡 ✅ **Add a demo GIF/screenshot above the fold in README.** The panel +
   prompt-queue is the differentiated hook; a moving image sells it. (Needs a
   recorded asset first.)
