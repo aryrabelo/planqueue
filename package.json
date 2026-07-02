@@ -46,7 +46,7 @@
 		"format": "biome check --write ."
 	},
 	"dependencies": {
-		"@aryrabelo/planqueue-core": "file:../planqueue-core"
+		"@aryrabelo/planqueue-core": "^0.1.0"
 	},
 	"peerDependencies": {
 		"@oh-my-pi/pi-coding-agent": "^16.0.0",
