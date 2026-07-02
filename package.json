@@ -24,6 +24,9 @@
 		"notes",
 		"coding-agent"
 	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"omp": {
 		"extensions": [
 			"./src/main.ts"
