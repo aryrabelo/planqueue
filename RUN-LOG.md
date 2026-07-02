@@ -4,43 +4,37 @@ State file for the goal loop. Re-read at the start of each round; write at the e
 
 ## Status
 
-- Turn: 2
-- Current: fixing TS2589 in src/main.ts (verified fix in hand), then verifier + readiness memo + commits.
+- Turn: 3 — **DoD COMPLETE**. All local work done, gates green, verifier deviations fixed, committed. Loop stops here; everything remaining is a HUMAN GATE.
 
 ## Done
 
-- [x] Risk gate: only consumer of free-text-core in ~/Sites/*/package.json is this repo. Safe to rename dir.
-- [x] User WIP preserved as commit 59a7d95 (`feat: rename /notes command to /planqueue and harden lifecycle error paths`).
-- [x] Core dir renamed: `~/Sites/free-text-core` → `~/Sites/planqueue-core`; package renamed `@aryrabelo/planqueue-core`; app dep + imports updated.
-- [x] Wave 1 (7 subagents) complete:
-  - StorageRebrand: `.planqueue` root + `LEGACY_ROOT_DIR_NAMES` chain (`.free-text`, `.omp-free-text`), new `legacyNotePathsFor`/`legacySessionsDirsFor`/`legacyConfigPathsFor`, `loadNoteWithFallback(newPath, legacyPaths[])`; app wiring migrated; core 171 pass.
-  - AppDocsRebrand: package.json `@aryrabelo/planqueue@0.1.0`, README/SECURITY/CONTRIBUTING/CHANGELOG(0.1.0 reset)/templates/AGENTS/launch-checklist/open-source-standard rebranded; migration note canonical in README Storage.
-  - LaunchBrief / DistributionPlan / DemoAssets / LaunchCopy / RunbookPostLaunch: all 8 launch artifacts written under docs/.
-- [x] Stale core `OPEN-SOURCE-PLAN.md` deleted (app repo never had one).
-- [x] Lockfiles regenerated (both repos) — workspace names now `@aryrabelo/planqueue` / `@aryrabelo/planqueue-core`; `bun install --frozen-lockfile` OK both.
-- [x] Core tempdir test prefix `omp-free-text-` → `planqueue-`.
-- [x] Residue grep both repos: only legacy-fallback code, labeled migration notes, and plan/RUN-LOG evidence remain.
-- [x] Core gates green: lint/typecheck clean, 171 pass / 0 fail.
+- [x] Risk gate: only consumer of free-text-core in ~/Sites/*/package.json was this repo. Core dir renamed `~/Sites/free-text-core` → `~/Sites/planqueue-core`.
+- [x] User WIP preserved as its own commit (59a7d95).
+- [x] Wave 1 (7 subagents): storage rebrand (`.planqueue` + `LEGACY_ROOT_DIR_NAMES` chain, new plural legacy helpers, fallback-covering tests), app docs/metadata rebrand, and all 8 launch artifacts.
+- [x] Lockfiles regenerated (workspace names correct); `bun install --frozen-lockfile` OK both repos.
+- [x] TS2589 launch blocker fixed: pi-coding-agent 16.3.2 type inference on `registerTool` → explicit `ZodType<…>` type arguments + zod type-only devDep (fix verified by isolated experiment before applying).
+- [x] Maker-checker verifier (independent subagent) ran: initial FAIL with 3 deviations, all fixed:
+  - `pi.setLabel("Free Text Notes")` → `"PlanQueue"`
+  - `freeTextExtension` → `planQueueExtension`
+  - core CHANGELOG reset to fresh `[0.1.0]` PlanQueue entry (never published, no public history lost)
+- [x] Final gates: app lint/typecheck clean, 1 pass; core lint/typecheck clean, 171 pass / 244 expects.
+- [x] Residue grep both repos: only legacy-fallback code, labeled migration notes, and plan/RUN-LOG history.
+- [x] `docs/launch-readiness-review.md`: **GO with caveats**, 6 HUMAN GATE checkboxes.
+- [x] Commits (Conventional Commits, explicit staging):
+  - app: 59a7d95, 0191aa1 (feat!: rebrand), bcb5715 (docs: repo docs), 18b259e (docs: launch artifacts) — working tree clean except gitignored AGENTS.md (local contract, updated).
+  - core: d3b63ca (feat!: rebrand), d88675b (docs: identity reset) — working tree clean.
 
-## In flight
+## HUMAN GATES (for Ary — automation never executes these)
 
-- [ ] TS2589 in app `src/main.ts:268` — caused by lockfile regen bumping `@oh-my-pi/pi-coding-agent` to 16.3.2, whose `Static<TParams>` conditional type explodes on reverse inference from annotated `execute` params. Real launch blocker: any fresh public install resolves `^16.0.0` → 16.3.2. Verified fix (scratch experiment): explicit type argument `pi.registerTool<ZodType<{...}>>(...)` compiles clean. Applying to both callsites (note_add line 268, make_note line 322) + type-only `import type { ZodType } from "zod"` + zod devDep.
+1. [ ] Rename GitHub repos `omp-free-text` → `planqueue`, `free-text-core` → `planqueue-core` (rename recommended: redirects + stars preserved).
+2. [ ] `npm publish @aryrabelo/planqueue-core` (HUMAN-RUN commands in docs/distribution-release-plan.md).
+3. [ ] Flip app dep `file:../planqueue-core` → `^0.1.0`, re-run gates, verify clean install (git + npm paths).
+4. [ ] Tag + GitHub release `v0.1.0`.
+5. [ ] Record demo per docs/demo-script.md; approve assets.
+6. [ ] Approve + post LinkedIn/X/Discord copy (docs/launch-copy.md).
+7. [ ] `git push` both repos (nothing was pushed).
 
-## Pending
+## NOTES
 
-- [ ] App gates green after fix (lint/typecheck/test).
-- [ ] Maker-checker verifier subagent (PASS/FAIL in transcript).
-- [ ] docs/launch-readiness-review.md (GO/NO-GO memo, ≥4 HUMAN GATEs).
-- [ ] Commits (Conventional Commits, explicit staging) both repos; final report.
-
-## HUMAN GATES (never executed by the loop)
-
-1. GitHub repo rename `omp-free-text` → `planqueue` and `free-text-core` → `planqueue-core`
-2. npm publish `@aryrabelo/planqueue-core`
-3. Tag/release `v0.1.0`
-4. Every social post (LinkedIn/X/Discord)
-5. App dep flip `file:../planqueue-core` → `^0.1.0` (after core publish)
-
-## NOTES (opportunistic extras — never committed without approval)
-
-- Lockfile regen bumped in-range resolutions (biome 2.5.2, pi-coding-agent 16.3.2, pi-tui 16.3.2). This is what a fresh install gets; keeping them is the honest launch posture.
+- Lockfile regen floated in-range resolutions (biome 2.5.2, pi packages 16.3.2) — matches what a fresh install gets; gates are green against them.
+- Manual smoke of the extension inside a live `omp` session was not run this round (needs an interactive TUI); recommended before tagging v0.1.0.
