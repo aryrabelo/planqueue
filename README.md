@@ -6,7 +6,7 @@
 
 **Stop pasting the next prompt manually. Write the plan once, then run it as a prompt queue.**
 
-PlanQueue is an OMP (Oh My Pi) extension that puts a free-text notes panel below the status line and turns that note into a FIFO prompt queue. Write your tasks as plain lines, checkpoint with `---`, then drip-feed them to the agent one keypress at a time — or let auto-run drain the queue for you. Notes persist per repo, branch, and session.
+PlanQueue is an OMP (Oh My Pi) extension that puts a session-notes panel below the status line and turns that note into a FIFO prompt queue. Write your tasks as plain lines, checkpoint with `---`, then drip-feed them to the agent one keypress at a time — or let auto-run drain the queue for you. Notes persist per repo, branch, and session.
 
 <!-- demo GIF: docs/demo.gif -->
 

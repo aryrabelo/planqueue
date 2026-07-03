@@ -253,7 +253,7 @@ above are green and Ary approves.
 **Stop pasting the next prompt manually. Write the plan once, then run it as a
 prompt queue.**
 
-PlanQueue is an open-source OMP extension that adds a persistent free-text note
+PlanQueue is an open-source OMP extension that adds a persistent session-note
 panel under the status line. The note doubles as a FIFO prompt queue: write your
 tasks naturally, checkpoint with a `---` human-in-the-loop barrier, then
 drip-feed prompts to the agent one step at a time — manually or with auto-run.

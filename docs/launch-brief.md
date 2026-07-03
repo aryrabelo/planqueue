@@ -28,7 +28,7 @@ Driving a coding agent is a sequence of prompts, but the tooling treats each pro
 
 ## One-liner
 
-> PlanQueue turns your free-text notes into a prompt queue for OMP coding agents.
+> PlanQueue turns your session notes into a prompt queue for OMP coding agents.
 
 ## Proof points (grounded in real features)
 

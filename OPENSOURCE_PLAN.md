@@ -35,11 +35,11 @@ There is no split between "public name" and "technical name". `omp-free-text` an
 
 ### One-liner
 
-> PlanQueue turns your free-text notes into a prompt queue for OMP coding agents.
+> PlanQueue turns your session notes into a prompt queue for OMP coding agents.
 
 ### Longer description
 
-PlanQueue is an open-source OMP extension that adds a persistent free-text note panel under the status line. The note doubles as a FIFO prompt queue: write tasks naturally, checkpoint with `---`, then drip-feed prompts to the agent manually or with auto-run.
+PlanQueue is an open-source OMP extension that adds a persistent note panel under the status line. The note doubles as a FIFO prompt queue: write tasks naturally, checkpoint with `---`, then drip-feed prompts to the agent manually or with auto-run.
 
 ### The hook to lead with
 
@@ -143,7 +143,7 @@ You are working in /Users/aryrabelo/Sites/omp-plan-queue.
 Objective: create a concise launch brief for the open-source launch of PlanQueue (repo aryrabelo/planqueue, package @aryrabelo/planqueue).
 
 Context:
-- PlanQueue turns free-text notes into prompt queues for OMP coding agents.
+- PlanQueue turns session notes into prompt queues for OMP coding agents.
 - One name everywhere: PlanQueue. Never reference omp-free-text or free-text-core in public-facing text.
 - This phase is strategy/docs only. Do not implement features, tag releases, publish npm, push commits, or post publicly.
 

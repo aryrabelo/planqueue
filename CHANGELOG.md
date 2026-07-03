@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-07-02
 
 PlanQueue first public release: an OMP (Oh My Pi) extension that renders a
-free-text session-notes panel below the status line and turns that note into a
+session-notes panel below the status line and turns that note into a
 FIFO prompt queue for coding agents.
 
 ### Added
