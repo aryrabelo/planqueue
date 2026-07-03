@@ -186,5 +186,5 @@ gap to close before launch.
   artifact-only. Optional/beyond-baseline: `dependabot.yml`, `FUNDING.yml`.
   Tracked, not blockers.
 
-See [`launch-checklist.md`](./launch-checklist.md) for the actionable,
-prioritized go-live list and the publicity plan.
+The actionable, prioritized go-live list and the publicity plan live in the
+private `planqueue-gtm` repo (internal go-to-market material).
