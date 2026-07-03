@@ -90,6 +90,8 @@ Type `/planqueue` to open a keyboard picker listing notes from your **other** se
 
 - The `note_add` tool lets the agent append tasks to your note itself: say "coloca na nota ..." (or "add to the list", "remember to ...") and it appends a `- [ ]` line. Auto-available in every session once the extension is installed — no separate skill install.
 - `/make-note <goal>` turns a high-level goal into a ready-to-drain queue in one shot: the agent decomposes it into sequential prompts and writes them via the `make_note` tool — one `- [ ]` task per step, indented detail lines sent with their prompt, and a `---` barrier wherever it decides you should review. Then drive it with `Ctrl+↓` / auto-run. (`/note <text>` is the manual one-liner: it appends a single `- [ ]` task without the agent.)
+- `/clear-note` empties the current note in one step. The previous content is appended to the `.history.md` sibling first, so nothing is lost — but it can't be auto-restored, so you confirm before it clears. A no-op on an already-empty note.
+- `/rebuild-note` clears the note (after the same kind of confirmation) and asks the agent to rebuild it from the whole session: it analyzes the conversation so far and calls `make_note` afresh, keeping only the work still remaining (skipping anything already done or marked `- [x]`). The old note is passed to the agent verbatim (and saved to history). On an empty note it just asks the agent to bootstrap a fresh plan.
 
 ### Copy the note
 

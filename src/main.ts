@@ -196,7 +196,7 @@ async function safeFlush(
 /** Build the themed widget styler mirroring OMP's HUD widgets (bold title, `└` tree hook, 2-space indent). */
 function widgetStyle(theme: Theme): WidgetStyle {
 	return {
-		title: theme.bold(theme.fg("accent", "PlanQueue")),
+		title: theme.bold(theme.fg("accent", "PlanQueue \u00b7 Notes")),
 		hook: theme.tree.hook,
 		indent: "  ",
 		hint: (t: string): string => theme.fg("dim", t),
@@ -310,6 +310,33 @@ function makeNotePrompt(goal: string): string {
 	);
 }
 
+/**
+ * Meta-prompt asking the agent to populate an empty note from the session so far.
+ * Shared by the empty-note bootstrap (fires once per session) and `/rebuild-note`
+ * when the note is already empty.
+ */
+const BOOTSTRAP_NOTE_PROMPT =
+	"The session note is empty. Based on the conversation so far, please call the make_note tool to create a note with:\n" +
+	"1. A short `heading` summarizing what we are working on (becomes `# Heading` at the top of the note).\n" +
+	"2. Two or more follow-up sub-tasks as `steps` that I can track and dispatch from the queue.\n" +
+	"Keep the heading concise and the tasks actionable.";
+
+/**
+ * Meta-prompt for `/rebuild-note`: the note was just cleared for a rebuild, so ask
+ * the agent to recreate the plan from the WHOLE conversation, keeping only the
+ * remaining actionable work. The old note is included verbatim at the end.
+ */
+function rebuildNotePrompt(oldNote: string): string {
+	return (
+		"I just cleared my PlanQueue note to rebuild it from scratch (the previous content is included below and is saved to history). " +
+		"Analyze the WHOLE conversation so far and recreate the plan by calling the make_note tool: pass a concise `heading` and `steps` " +
+		"that cover ONLY the REMAINING actionable work — skip anything already completed in this session or marked `- [x]` in the old note. " +
+		"Put supporting detail in `details` (sent together with the prompt as one message) and set `barrierAfter: true` only where I must review before the queue continues. " +
+		"Keep prompts concrete and self-contained.\n\nOld note:\n" +
+		oldNote
+	);
+}
+
 /** Register the `make_note` tool so the agent can write a whole decomposed prompt-queue plan to the note. */
 function registerMakeNoteTool(
 	pi: ExtensionAPI,
@@ -405,9 +432,10 @@ interface NoteCommandDeps {
 	legacySessionsDirs: () => readonly string[] | undefined;
 	persist: (ctx: ExtensionContext, next: string) => Promise<void>;
 	openEditor: (ctx: ExtensionContext) => Promise<void>;
+	resetQueue: () => void;
 }
 
-/** Register the `note`, `notes`, and `make-note` slash commands. */
+/** Register the `note`, `planqueue`, `make-note`, `clear-note`, and `rebuild-note` slash commands. */
 function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 	pi.registerCommand("note", {
 		description:
@@ -440,6 +468,51 @@ function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 			const goal = args.trim();
 			if (goal.length > 0) pi.sendUserMessage(makeNotePrompt(goal));
 			return Promise.resolve();
+		},
+	});
+	pi.registerCommand("clear-note", {
+		description:
+			"Clear the current PlanQueue note (previous version stays in history)",
+		handler: async (
+			_args: string,
+			ctx: ExtensionCommandContext,
+		): Promise<void> => {
+			if (!ctx.hasUI) return;
+			if (deps.content().trim() === "") {
+				ctx.ui.notify("Note is already empty", "info");
+				return;
+			}
+			const confirmed = await ctx.ui.confirm(
+				"Clear note?",
+				"The current note is saved to history and can't be auto-restored.",
+			);
+			if (!confirmed) return;
+			await deps.persist(ctx, "");
+			deps.resetQueue();
+			ctx.ui.notify("Note cleared (previous version in history)", "info");
+		},
+	});
+	pi.registerCommand("rebuild-note", {
+		description:
+			"Clear the note and ask the agent to rebuild the plan from the whole session",
+		handler: async (
+			_args: string,
+			ctx: ExtensionCommandContext,
+		): Promise<void> => {
+			if (!ctx.hasUI) return;
+			const old = deps.content();
+			if (old.trim() === "") {
+				pi.sendUserMessage(BOOTSTRAP_NOTE_PROMPT);
+				return;
+			}
+			const confirmed = await ctx.ui.confirm(
+				"Rebuild note?",
+				"The current note is cleared (saved to history) and the agent recreates the plan from the whole session.",
+			);
+			if (!confirmed) return;
+			await deps.persist(ctx, "");
+			deps.resetQueue();
+			pi.sendUserMessage(rebuildNotePrompt(old));
 		},
 	});
 }
@@ -576,13 +649,7 @@ export default async function planQueueExtension(
 	pi.on("session_stop", (_event, _ctx) => {
 		if (bootstrapped || content.trim() !== "") return;
 		bootstrapped = true;
-		pi.sendUserMessage(
-			"The session note is empty. Based on the conversation so far, please call the make_note tool to create a note with:\n" +
-				"1. A short `heading` summarizing what we are working on (becomes `# Heading` at the top of the note).\n" +
-				"2. Two or more follow-up sub-tasks as `steps` that I can track and dispatch from the queue.\n" +
-				"Keep the heading concise and the tasks actionable.",
-			{ deliverAs: "followUp" },
-		);
+		pi.sendUserMessage(BOOTSTRAP_NOTE_PROMPT, { deliverAs: "followUp" });
 	});
 
 	pi.registerShortcut(shortcuts.editNotes as KeyId, {
@@ -602,6 +669,7 @@ export default async function planQueueExtension(
 		legacySessionsDirs: () => legacySessionsDirs,
 		persist,
 		openEditor,
+		resetQueue: () => queue.reset(),
 	});
 	registerNoteAddTool(pi, {
 		notePath: () => notePath,
