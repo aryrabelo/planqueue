@@ -1,0 +1,28 @@
+src/backlog.ts
+  s_55a2cb28829857::t_513fef4290d668 1-188
+  s_55a2cb28829857::t_5c264fc22ad168 189-193
+tests/backlog.test.ts
+  s_55a2cb28829857::t_96b246b2eaca41 1-70
+src/cli.ts
+  s_55a2cb28829857::t_78b17d4d01d597 1-122
+  s_55a2cb28829857::t_e076d87229d248 123-144
+package.json
+  s_55a2cb28829857::t_7d9b8227a05365 45-47
+  s_55a2cb28829857::t_55e704fd9af426 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "164da9ae1679afc5716f0447a0662ce5b73eddeb",
+  "prompts": {},
+  "sessions": {
+    "s_55a2cb28829857": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40b0a5d9-8d48-44d5-b584-d2a146ee193a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ary Rabelo <aryrabelo@gmail.com>"
+    }
+  }
+}
