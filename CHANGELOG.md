@@ -7,14 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-03
+
 ### Added
 
 - `/clear-note` command: empties the current note (appending the previous content to `.history.md` first) behind a confirmation prompt; a no-op on an already-empty note.
 - `/rebuild-note` command: behind a confirmation prompt, clears the note and asks the agent to rebuild the plan from the whole session via `make_note`, keeping only the remaining work (skipping anything already done or marked `- [x]`); the old note is passed verbatim and saved to history. On an empty note it bootstraps a fresh plan (no confirmation).
+- `planqueue backlog` CLI (`bin` entry): a JSON-out interface over `~/.planqueue/backlog.db` (`ready`, `blocked`, `add-dep`, `set-status`, `add`) that codifies the plan-level backlog ordering, replacing hand-pasted SQL. Exit code doubles as a gate.
 
 ### Changed
 
 - Widget title changed from `PlanQueue` to `PlanQueue · Notes`.
+- Extension display label (`pi.setLabel`) changed from `PlanQueue` to `PlanQueue · Notes` to match the widget branding.
 
 ## [0.1.0] - 2026-07-02
 
@@ -40,4 +44,5 @@ FIFO prompt queue for coding agents.
 
 - Internal iterations preceding the public PlanQueue identity are not tracked here; `0.1.0` is the first release under this name.
 
+[0.1.1]: https://github.com/aryrabelo/planqueue/releases/tag/v0.1.1
 [0.1.0]: https://github.com/aryrabelo/planqueue/releases/tag/v0.1.0

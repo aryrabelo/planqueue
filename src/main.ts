@@ -532,7 +532,7 @@ export default async function planQueueExtension(
 	let bootstrapped = false;
 	const shortcuts = await loadShortcuts(pi);
 
-	pi.setLabel("PlanQueue");
+	pi.setLabel("PlanQueue \u00b7 Notes");
 
 	function refreshWidget(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
