@@ -1,0 +1,19 @@
+src/main.ts
+  s_55a2cb28829857::t_ca4e841e84d225 535
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2edb283e6e8f2eb3f05c851dc1b02126566c4ccf",
+  "prompts": {},
+  "sessions": {
+    "s_55a2cb28829857": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40b0a5d9-8d48-44d5-b584-d2a146ee193a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ary Rabelo <aryrabelo@gmail.com>"
+    }
+  }
+}
