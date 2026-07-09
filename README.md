@@ -24,6 +24,7 @@ If this is useful to you, please ⭐ the repo — it helps others find it.
   - [Let the agent write the queue](#let-the-agent-write-the-queue)
   - [Copy the note](#copy-the-note)
   - [Configurable shortcuts](#configurable-shortcuts)
+  - [Disabling per launch](#disabling-per-launch)
 - [Storage](#storage)
 - [Development](#development)
 - [Non-goals / Roadmap](#non-goals--roadmap)
@@ -112,6 +113,14 @@ All three shortcuts are read once at startup from a global `~/.planqueue/config.
 ```
 
 Omit the file (or any key) to keep the defaults shown above. A missing or malformed entry falls back to its default and logs a warning. This is the escape hatch when your terminal does not emit a distinct `Ctrl+Shift+↓`: rebind `queueToggleAuto` to a combo it does send (e.g. `"ctrl+b"`). Use OMP `KeyId` syntax — lowercase `modifier+key`, modifiers `ctrl`/`shift`/`alt`/`super` (e.g. `"alt+enter"`).
+
+### Disabling per launch
+
+Set `PLANQUEUE_DISABLE=1` to start OMP without PlanQueue for that process — no panel, shortcuts, tools, or commands:
+
+```sh
+PLANQUEUE_DISABLE=1 omp
+```
 
 ## Storage
 

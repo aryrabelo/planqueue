@@ -520,6 +520,8 @@ function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 export default async function planQueueExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
+	// ponytail: env-var kill switch; a real CLI flag needs OMP SDK support
+	if (process.env["PLANQUEUE_DISABLE"] === "1") return;
 	let notePath: string | undefined;
 	let historyPath: string | undefined;
 	let sessionsDir: string | undefined;
