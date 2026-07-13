@@ -8,7 +8,9 @@
 
 PlanQueue is an OMP (Oh My Pi) extension that puts a session-notes panel below the status line and turns that note into a FIFO prompt queue. Write your tasks as plain lines, checkpoint with `---`, then drip-feed them to the agent one keypress at a time — or let auto-run drain the queue for you. Notes persist per repo, branch, and session.
 
-<!-- demo GIF: docs/demo.gif -->
+[![PlanQueue demo — click to watch the video](https://raw.githubusercontent.com/aryrabelo/planqueue/main/docs/demo.png)](https://github.com/aryrabelo/planqueue/raw/main/docs/demo.mp4)
+
+▶ **[Watch the 45-second demo](https://github.com/aryrabelo/planqueue/raw/main/docs/demo.mp4)**
 
 If this is useful to you, please ⭐ the repo — it helps others find it.
 
