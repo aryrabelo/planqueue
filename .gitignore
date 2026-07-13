@@ -14,3 +14,8 @@ AGENTS.md
 # Local agent/harness session state — never part of the package
 .claude/
 .harness-mem/
+
+# Local generated artifacts
+repo-docs/
+omp-session-*.html
+agent-tools.md
