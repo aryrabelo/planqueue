@@ -7,13 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Auto session-summary heading: on your first message in a session the note gains a `# <summary>` heading derived from that message (idempotent; skips slash-commands). Bootstrap now fires for empty *or* heading-only notes, and `make_note` never double-heads.
+- Spent-note prompt: after the queue has run and drained, PlanQueue acts once — when all tasks are done (`- [x]`) it asks (confirm) whether to rebuild the note from the session (the `/rebuild-note` flow); otherwise (e.g. only a heading left) it just notifies you to run `/rebuild-note` or `/clear-note`. It never auto-runs the agent without your confirmation.
+- Copy discoverability: the first time you open the notes editor each session, PlanQueue surfaces the `Alt+Shift+C` whole-buffer copy shortcut.
+
+### Changed
+
+- Auto-run no longer clobbers in-progress typing: while auto-run is on it pauses instead of dispatching the next queue line whenever you have unsent text in the input, resuming once you send it.
+- The below-editor notes widget is now hidden while the notes editor is open, removing the decorated duplicate ("sidebar") that made the note hard to copy.
+
+### Dependencies
+
+- Requires `@aryrabelo/planqueue-core` `^0.2.0` (new `deriveHeading`, `ensureHeadingFromMessage`, `hasHeading`, `hasDoneTask`, `isEmptyOrHeadingOnly`, `isQueueSpent`).
+
 ## [0.1.1] - 2026-07-03
 
 ### Added
 
 - `/clear-note` command: empties the current note (appending the previous content to `.history.md` first) behind a confirmation prompt; a no-op on an already-empty note.
 - `/rebuild-note` command: behind a confirmation prompt, clears the note and asks the agent to rebuild the plan from the whole session via `make_note`, keeping only the remaining work (skipping anything already done or marked `- [x]`); the old note is passed verbatim and saved to history. On an empty note it bootstraps a fresh plan (no confirmation).
-- `planqueue backlog` CLI (`bin` entry): a JSON-out interface over `~/.planqueue/backlog.db` (`ready`, `blocked`, `add-dep`, `set-status`, `add`) that codifies the plan-level backlog ordering, replacing hand-pasted SQL. Exit code doubles as a gate.
 
 ### Changed
 
