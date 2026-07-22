@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto session-summary heading: on your first message in a session the note gains a `# <summary>` heading derived from that message (idempotent; skips slash-commands). Bootstrap now fires for empty *or* heading-only notes, and `make_note` never double-heads.
 - Spent-note prompt: after the queue has run and drained, PlanQueue acts once — when all tasks are done (`- [x]`) it asks (confirm) whether to rebuild the note from the session (the `/rebuild-note` flow); otherwise (e.g. only a heading left) it just notifies you to run `/rebuild-note` or `/clear-note`. It never auto-runs the agent without your confirmation.
 - Copy discoverability: the first time you open the notes editor each session, PlanQueue surfaces the `Alt+Shift+C` whole-buffer copy shortcut.
+- Hide toggle: `Ctrl+H` collapses the widget to a single bare `PlanQueue` line and toggles back, for when you want the panel out of the way. The state sticks across session switches.
 
 ### Changed
 

@@ -534,6 +534,8 @@ export default async function planQueueExtension(
 	let saver: DebouncedSaver | undefined;
 	let content = "";
 	let editorOpen = false;
+	/** Ctrl+H toggle: when true the widget collapses to just the title line. */
+	let hidden = false;
 	/** Guards the empty-note bootstrap so it fires at most once per session. */
 	let bootstrapped = false;
 	/** Shows the copy-shortcut hint at most once per session, on the first editor open. */
@@ -550,16 +552,20 @@ export default async function planQueueExtension(
 			ctx.ui.setWidget(WIDGET_KEY, undefined);
 			return;
 		}
+		// Hidden (Ctrl+H toggle): collapse to just the bare "PlanQueue" brand line.
+		if (hidden) {
+			const t = ctx.ui.theme;
+			ctx.ui.setWidget(WIDGET_KEY, ["", t.bold(t.fg("accent", "PlanQueue"))], {
+				placement: "belowEditor",
+			});
+			return;
+		}
+		const style = widgetStyle(ctx.ui.theme);
 		const shortcut = queueHint(shortcuts, queue.isAuto(), queue.isBlocked());
 		ctx.ui.setWidget(
 			WIDGET_KEY,
-			renderWidgetLines(content, {
-				style: widgetStyle(ctx.ui.theme),
-				shortcut,
-			}),
-			{
-				placement: "belowEditor",
-			},
+			renderWidgetLines(content, { style, shortcut }),
+			{ placement: "belowEditor" },
 		);
 	}
 
@@ -717,6 +723,17 @@ export default async function planQueueExtension(
 					`[planqueue] edit-notes shortcut failed: ${err instanceof Error ? err.message : String(err)}`,
 				),
 			),
+	});
+
+	// Default binding is hardcoded (the other shortcuts are config-overridable via
+	// ~/.planqueue/config.json); move `hide` into core's ShortcutConfig if an override is needed.
+	// Note: some terminals send Ctrl+H as the Backspace byte (0x08) — OMP's keybinding layer decides.
+	pi.registerShortcut("ctrl+h" as KeyId, {
+		description: "Hide/show the PlanQueue notes widget",
+		handler: (ctx: ExtensionContext): void => {
+			hidden = !hidden;
+			refreshWidget(ctx);
+		},
 	});
 
 	registerNoteCommands(pi, {
