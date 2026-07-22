@@ -15,6 +15,7 @@ import {
 	completeInflight,
 	findHead,
 	humanizeKey,
+	isQueueSpent,
 	markInflight,
 	removeBarrier,
 	type ShortcutConfig,
@@ -77,6 +78,12 @@ export interface QueueDeps {
 	editorOpen: () => boolean;
 	/** Resolved, possibly user-overridden shortcut keys. */
 	shortcuts: ShortcutConfig;
+	/**
+	 * Called once when the queue becomes spent (only done tasks and/or a summary heading remain)
+	 * after it was actually used. The caller decides what to do (confirm+rebuild vs. a passive
+	 * notice); this module only detects the drained state. Optional; skipped when absent.
+	 */
+	onDrained?: (ctx: ExtensionContext) => Promise<void>;
 }
 
 /** Public surface of the queue controller used by the factory. */
@@ -93,6 +100,13 @@ export function createQueue(deps: QueueDeps): QueueController {
 	// `blocked` drives the widget hint's unlock instruction and, inside herdr, mirrors
 	// into the sidebar via a strictly-paired `herdr:blocked` event (one true <-> one false).
 	let blocked = false;
+	// A dispatch has run this queue at least once — gates the drained-note callback so a
+	// fresh (never-run) note is bootstrapped, not flagged as drained.
+	let usedQueue = false;
+	// The drained callback has already fired for the current spent state (avoids re-nagging).
+	let drainedHandled = false;
+	// Auto-run is paused because the user has an unsent draft — notify only on the transition.
+	let draftPaused = false;
 	function setBlocked(active: boolean, label?: string): void {
 		if (active === blocked) return;
 		blocked = active;
@@ -107,6 +121,21 @@ export function createQueue(deps: QueueDeps): QueueController {
 		}
 	}
 
+	/** Whether the user has unsent text in the core input editor (never clobber their typing). */
+	function hasDraft(ctx: ExtensionContext): boolean {
+		return ctx.hasUI && ctx.ui.getEditorText().trim() !== "";
+	}
+
+	/** Pause auto-run for an unsent draft, notifying once per pause episode. */
+	function pauseForDraft(ctx: ExtensionContext): void {
+		if (draftPaused) return;
+		draftPaused = true;
+		ctx.ui.notify(
+			"Auto-run paused while you're typing — send your message to resume the queue",
+			"info",
+		);
+	}
+
 	async function sendPrompt(
 		ctx: ExtensionContext,
 		line: number,
@@ -117,8 +146,12 @@ export function createQueue(deps: QueueDeps): QueueController {
 		// as if the user typed it. From idle (manual step / priming) a plain send starts the turn;
 		// from inside session_stop (auto-advance) "followUp" queues it for the post-settle drain
 		// (a plain send would throw AgentBusyError while the settling turn is still streaming).
-		// Any dispatch resumes the queue — clear a prior human-in-the-loop pause.
+		// Any dispatch resumes the queue — clear a prior human-in-the-loop or draft pause, and mark
+		// the queue as used so the drained-note callback can fire once it later empties.
 		setBlocked(false);
+		usedQueue = true;
+		draftPaused = false;
+		drainedHandled = false;
 		pi.sendUserMessage(text, deliverAs ? { deliverAs } : undefined);
 		await deps.persist(ctx, markInflight(deps.content(), line));
 	}
@@ -137,8 +170,10 @@ export function createQueue(deps: QueueDeps): QueueController {
 	/** Feed the next line while the agent is idle (prompt -> send, barrier -> halt). */
 	async function feedIdle(ctx: ExtensionContext): Promise<void> {
 		const head = findHead(deps.content());
-		if (head.kind === "prompt") await sendPrompt(ctx, head.line, head.text);
-		else if (head.kind === "barrier") await haltAtBarrier(ctx);
+		if (head.kind === "prompt") {
+			if (hasDraft(ctx)) return pauseForDraft(ctx);
+			await sendPrompt(ctx, head.line, head.text);
+		} else if (head.kind === "barrier") await haltAtBarrier(ctx);
 	}
 
 	async function step(ctx: ExtensionContext): Promise<void> {
@@ -196,6 +231,7 @@ export function createQueue(deps: QueueDeps): QueueController {
 			await haltAtBarrier(ctx);
 			return;
 		}
+		if (hasDraft(ctx)) return pauseForDraft(ctx);
 		// Feed the next line as a follow-up user message (visible in the transcript) instead of an
 		// invisible additionalContext continuation. After settle the agent auto-drains the follow-up
 		// into a fresh turn whose session_stop re-enters here, draining one visible user turn per
@@ -203,12 +239,29 @@ export function createQueue(deps: QueueDeps): QueueController {
 		await sendPrompt(ctx, head.line, head.text, "followUp");
 	}
 
+	/**
+	 * After a settle, invoke `deps.onDrained` once when the queue is spent (only done tasks
+	 * and/or a summary heading remain) AND was actually used (`usedQueue`) — skipped while
+	 * editing, while the user has a draft, or once already fired for this spent state. The
+	 * callback decides the UX (confirm+rebuild vs. passive notice); this only detects drain.
+	 */
+	async function maybeOfferRefresh(ctx: ExtensionContext): Promise<void> {
+		if (deps.onDrained === undefined || !ctx.hasUI) return;
+		if (!usedQueue || !isQueueSpent(deps.content())) {
+			drainedHandled = false;
+			return;
+		}
+		if (drainedHandled || deps.editorOpen() || hasDraft(ctx)) return;
+		drainedHandled = true;
+		await deps.onDrained(ctx);
+	}
+
 	pi.on("session_stop", async (event, ctx) => {
 		// A settled turn means the in-flight task finished — mark it done (manual or auto).
 		const completed = completeInflight(deps.content());
 		if (completed !== deps.content()) await deps.persist(ctx, completed);
-		if (!auto) return;
-		await autoAdvance(event, ctx);
+		if (auto) await autoAdvance(event, ctx);
+		await maybeOfferRefresh(ctx);
 	});
 
 	pi.registerShortcut(deps.shortcuts.queueStep as KeyId, {
@@ -237,6 +290,9 @@ export function createQueue(deps: QueueDeps): QueueController {
 		reset: (): void => {
 			auto = false;
 			setBlocked(false);
+			usedQueue = false;
+			drainedHandled = false;
+			draftPaused = false;
 		},
 	};
 }

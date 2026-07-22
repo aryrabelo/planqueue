@@ -20,7 +20,11 @@ import {
 	configPathFor,
 	createDebouncedSaver,
 	type DebouncedSaver,
+	ensureHeadingFromMessage,
+	hasDoneTask,
+	hasHeading,
 	historyPathFor,
+	isEmptyOrHeadingOnly,
 	legacyConfigPathsFor,
 	legacyNotePathsFor,
 	legacySessionsDirsFor,
@@ -311,14 +315,14 @@ function makeNotePrompt(goal: string): string {
 }
 
 /**
- * Meta-prompt asking the agent to populate an empty note from the session so far.
- * Shared by the empty-note bootstrap (fires once per session) and `/rebuild-note`
- * when the note is already empty.
+ * Meta-prompt asking the agent to populate a note that has no actionable tasks yet (empty or
+ * heading-only) from the session so far. Shared by the empty-note bootstrap (fires once per
+ * session) and `/rebuild-note` when the note is already empty.
  */
 const BOOTSTRAP_NOTE_PROMPT =
-	"The session note is empty. Based on the conversation so far, please call the make_note tool to create a note with:\n" +
-	"1. A short `heading` summarizing what we are working on (becomes `# Heading` at the top of the note).\n" +
-	"2. Two or more follow-up sub-tasks as `steps` that I can track and dispatch from the queue.\n" +
+	"The session note has no actionable tasks yet. Based on the conversation so far, please call the make_note tool to:\n" +
+	"1. Ensure a short `heading` summarizing what we are working on (rendered as `# Heading` at the top; skipped automatically if the note already has one).\n" +
+	"2. Add two or more follow-up sub-tasks as `steps` that I can track and dispatch from the queue.\n" +
 	"Keep the heading concise and the tasks actionable.";
 
 /**
@@ -410,7 +414,7 @@ function registerMakeNoteTool(
 				};
 			}
 			let base = deps.content();
-			if (params.heading) {
+			if (params.heading && !hasHeading(base)) {
 				const h = `# ${params.heading}`;
 				base = base.trim() === "" ? h : `${h}\n\n${base}`;
 			}
@@ -532,12 +536,20 @@ export default async function planQueueExtension(
 	let editorOpen = false;
 	/** Guards the empty-note bootstrap so it fires at most once per session. */
 	let bootstrapped = false;
+	/** Shows the copy-shortcut hint at most once per session, on the first editor open. */
+	let editorHintShown = false;
 	const shortcuts = await loadShortcuts(pi);
 
 	pi.setLabel("PlanQueue \u00b7 Notes");
 
 	function refreshWidget(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
+		// While the notes editor is open the editor buffer already shows the note; suppress the
+		// decorated below-editor widget so it is not a confusing, hard-to-copy duplicate ("sidebar").
+		if (editorOpen) {
+			ctx.ui.setWidget(WIDGET_KEY, undefined);
+			return;
+		}
 		const shortcut = queueHint(shortcuts, queue.isAuto(), queue.isBlocked());
 		ctx.ui.setWidget(
 			WIDGET_KEY,
@@ -555,6 +567,7 @@ export default async function planQueueExtension(
 		saver?.dispose();
 		queue.reset();
 		bootstrapped = false;
+		editorHintShown = false;
 		const [repoToplevel, branch] = await Promise.all([
 			runGit(pi, ctx.cwd, ["rev-parse", "--show-toplevel"]),
 			runGit(pi, ctx.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]),
@@ -610,6 +623,17 @@ export default async function planQueueExtension(
 		// write — and `showHookCustom` restores the prompt on close. While open,
 		// auto-run pauses striking (see `editorOpen`) so a save can't clobber strikes.
 		editorOpen = true;
+		// Suppress the below-editor widget so its decorated duplicate ("sidebar") doesn't clutter
+		// editing / copying; the editor buffer is the clean copy source. Surface the whole-buffer
+		// copy shortcut once per session so it's discoverable.
+		refreshWidget(ctx);
+		if (!editorHintShown) {
+			editorHintShown = true;
+			ctx.ui.notify(
+				"Alt+Shift+C copies the whole note to your clipboard",
+				"info",
+			);
+		}
 		try {
 			const result = await ctx.ui.custom<EditorResult>(
 				(
@@ -622,6 +646,7 @@ export default async function planQueueExtension(
 			await applyEditorResult(ctx, original, result, persist, historyPath);
 		} finally {
 			editorOpen = false;
+			refreshWidget(ctx);
 		}
 	}
 
@@ -633,6 +658,27 @@ export default async function planQueueExtension(
 		label: () => (loc ? `${loc.repo}/${loc.branch}` : "PlanQueue queue"),
 		editorOpen: () => editorOpen,
 		shortcuts,
+		onDrained: async (ctx: ExtensionContext): Promise<void> => {
+			// All tasks done (`- [x]`): ASK whether to rebuild from the session (Yes runs the
+			// agent; No leaves the note and re-checks on a later drain). Anything else spent
+			// (e.g. only a heading, nothing completed): just point at the commands — no agent run.
+			if (hasDoneTask(content)) {
+				const old = content;
+				const confirmed = await ctx.ui.confirm(
+					"All tasks done — rebuild note?",
+					"Rebuild the note plan from this session, or keep it and re-check later?",
+				);
+				if (!confirmed) return;
+				await persist(ctx, "");
+				queue.reset();
+				pi.sendUserMessage(rebuildNotePrompt(old));
+				return;
+			}
+			ctx.ui.notify(
+				"Note has no pending tasks — run /rebuild-note to refresh it from this session, or /clear-note to clear it",
+				"info",
+			);
+		},
 	});
 
 	pi.on("session_start", (_event, ctx) => initSession(ctx));
@@ -646,10 +692,19 @@ export default async function planQueueExtension(
 		await safeFlush(pi, saver);
 	});
 
-	// Bootstrap: when the first turn settles and the note is still empty, ask the
-	// agent to populate it with a heading and suggested follow-up tasks.
+	// On every genuine user message, ensure the note carries a `# heading` summarizing the
+	// session (added once, from the first message that has no heading yet). Queue-dispatched
+	// and bootstrap/rebuild messages are source "extension" and skipped.
+	pi.on("input", async (event, ctx) => {
+		if (event.source !== "interactive" || notePath === undefined) return;
+		const next = ensureHeadingFromMessage(content, event.text);
+		if (next !== content) await persist(ctx, next);
+	});
+
+	// Bootstrap: when the first turn settles and the note has no actionable tasks yet (empty or
+	// only a heading), ask the agent to populate it with a heading and suggested follow-up tasks.
 	pi.on("session_stop", (_event, _ctx) => {
-		if (bootstrapped || content.trim() !== "") return;
+		if (bootstrapped || !isEmptyOrHeadingOnly(content)) return;
 		bootstrapped = true;
 		pi.sendUserMessage(BOOTSTRAP_NOTE_PROMPT, { deliverAs: "followUp" });
 	});

@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
 import {
+	deriveHeading,
+	ensureHeadingFromMessage,
+	hasDoneTask,
+	hasHeading,
+	isEmptyOrHeadingOnly,
+	isQueueSpent,
 	legacyNotePathsFor,
 	notePathFor,
 	parseTaskLine,
@@ -23,4 +29,15 @@ test("core resolves through the package surface", () => {
 	]);
 	expect(parseTaskLine("- [ ] hi").state).toBe("pending");
 	expect(renderWidgetLines("- [ ] hi").length).toBeGreaterThan(0);
+});
+
+test("new heading / spent-queue helpers resolve through the package surface", () => {
+	expect(deriveHeading("build the widget")).toBe("build the widget");
+	expect(ensureHeadingFromMessage("- [ ] task", "build the widget")).toBe(
+		"# build the widget\n\n- [ ] task",
+	);
+	expect(hasHeading("# Topic\n- [ ] task")).toBe(true);
+	expect(isEmptyOrHeadingOnly("# Topic")).toBe(true);
+	expect(isQueueSpent("- [x] done")).toBe(true);
+	expect(hasDoneTask("- [x] done")).toBe(true);
 });
