@@ -35,6 +35,7 @@ import {
 	normalizeQueue,
 	notePathFor,
 	parseShortcutConfig,
+	prependQueue,
 	type QueueStep,
 	queueHint,
 	type ResolvedLocation,
@@ -61,6 +62,19 @@ import type { ZodType } from "zod";
 import { createQueue } from "./queue-controller";
 
 const WIDGET_KEY = "planqueue";
+/**
+ * OMP truncates a `string[]` widget at 10 lines per key (`MAX_WIDGET_LINES`, appending
+ * "... (widget truncated)"). A taller panel is therefore published as consecutive keyed
+ * widgets — `belowEditor` renders them back-to-back with no spacer, so the seam is invisible.
+ */
+const WIDGET_CHUNK = 10;
+/** Total panel budget across all chunks; also the ceiling `renderWidgetLines` clamps to. */
+const WIDGET_MAX_LINES = 20;
+
+/** Widget key for the nth chunk; chunk 0 keeps the bare key so a single-chunk panel is unchanged. */
+function widgetKey(index: number): string {
+	return index === 0 ? WIDGET_KEY : `${WIDGET_KEY}:${index}`;
+}
 
 /** Outcome of the notes editor overlay: the buffer and how it was closed. */
 interface EditorResult {
@@ -544,28 +558,50 @@ export default async function planQueueExtension(
 
 	pi.setLabel("PlanQueue \u00b7 Notes");
 
+	/** Number of chunk keys the last publish used, so shrinking the panel clears the leftovers. */
+	let widgetChunks = 0;
+
+	/** Publish `lines` as consecutive ≤10-line widgets and clear every key this render did not fill. */
+	function setWidgetLines(
+		ctx: ExtensionContext,
+		lines: readonly string[],
+	): void {
+		let index = 0;
+		for (; index * WIDGET_CHUNK < lines.length; index++) {
+			ctx.ui.setWidget(
+				widgetKey(index),
+				lines.slice(index * WIDGET_CHUNK, (index + 1) * WIDGET_CHUNK),
+				{ placement: "belowEditor" },
+			);
+		}
+		for (let stale = index; stale < widgetChunks; stale++)
+			ctx.ui.setWidget(widgetKey(stale), undefined);
+		widgetChunks = index;
+	}
+
 	function refreshWidget(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
 		// While the notes editor is open the editor buffer already shows the note; suppress the
 		// decorated below-editor widget so it is not a confusing, hard-to-copy duplicate ("sidebar").
 		if (editorOpen) {
-			ctx.ui.setWidget(WIDGET_KEY, undefined);
+			setWidgetLines(ctx, []);
 			return;
 		}
 		// Hidden (Ctrl+H toggle): collapse to just the bare "PlanQueue" brand line.
 		if (hidden) {
 			const t = ctx.ui.theme;
-			ctx.ui.setWidget(WIDGET_KEY, ["", t.bold(t.fg("accent", "PlanQueue"))], {
-				placement: "belowEditor",
-			});
+			setWidgetLines(ctx, ["", t.bold(t.fg("accent", "PlanQueue"))]);
 			return;
 		}
 		const style = widgetStyle(ctx.ui.theme);
 		const shortcut = queueHint(shortcuts, queue.isAuto(), queue.isBlocked());
-		ctx.ui.setWidget(
-			WIDGET_KEY,
-			renderWidgetLines(content, { style, shortcut }),
-			{ placement: "belowEditor" },
+		setWidgetLines(
+			ctx,
+			renderWidgetLines(content, {
+				style,
+				shortcut,
+				maxLines: WIDGET_MAX_LINES,
+			}),
 		);
 	}
 
@@ -656,6 +692,30 @@ export default async function planQueueExtension(
 		}
 	}
 
+	/**
+	 * The edit-notes key with an unsent prompt in the input editor: offer to queue that
+	 * draft at the top of the note (clearing the prompt) instead of opening the editor.
+	 * Line one becomes the task, the rest its continuation lines, so it dispatches as one
+	 * multi-line prompt. Declining — or an empty prompt — falls through to the notes editor.
+	 */
+	async function editShortcut(ctx: ExtensionContext): Promise<void> {
+		const draft = ctx.hasUI ? ctx.ui.getEditorText().trim() : "";
+		if (draft.length > 0 && notePath !== undefined) {
+			const queueIt = await ctx.ui.confirm(
+				"Queue this prompt?",
+				"Put the typed prompt at the top of the note queue instead of opening the notes editor?",
+			);
+			if (queueIt) {
+				const [prompt = "", ...details] = draft.split("\n");
+				await persist(ctx, prependQueue(content, [{ prompt, details }]));
+				ctx.ui.setEditorText("");
+				ctx.ui.notify("Prompt queued at the top of the note", "info");
+				return;
+			}
+		}
+		await openEditor(ctx);
+	}
+
 	const queue = createQueue({
 		pi,
 		content: () => content,
@@ -716,9 +776,9 @@ export default async function planQueueExtension(
 	});
 
 	pi.registerShortcut(shortcuts.editNotes as KeyId, {
-		description: "Edit PlanQueue session notes",
+		description: "Queue the typed prompt, or edit PlanQueue session notes",
 		handler: (ctx: ExtensionContext): Promise<void> =>
-			openEditor(ctx).catch((err: unknown): void =>
+			editShortcut(ctx).catch((err: unknown): void =>
 				pi.logger.error(
 					`[planqueue] edit-notes shortcut failed: ${err instanceof Error ? err.message : String(err)}`,
 				),

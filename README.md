@@ -66,7 +66,7 @@ omp plugin uninstall @aryrabelo/planqueue        # remove
 
 ## Usage
 
-Press `Ctrl+N` or type `/note` to open the editor. Type freely, then close or submit to save. The panel below the status line shows the latest note; each body line renders with a glyph for its queue state (`☐` pending, `▸` in-flight, `✓` done) and a dimmed hint listing your keys — `(Ctrl+N · Ctrl+↓ queue · Ctrl+Shift+↓ auto)` by default.
+Press `Ctrl+N` or type `/note` to open the editor. Type freely, then close or submit to save. The panel below the status line shows the latest note — up to 20 lines, windowed around the active task when the queue is longer; each body line renders with a glyph for its queue state (`☐` pending, `▸` in-flight, `✓` done) and a dimmed hint listing your keys — `(Ctrl+N · Ctrl+↓ queue · Ctrl+Shift+↓ auto)` by default. `Ctrl+H` collapses it to a single `PlanQueue` line.
 
 ### Prompt queue
 
@@ -74,6 +74,7 @@ The note is the queue, read top to bottom (FIFO). You type plain lines (or `-` b
 
 - `Ctrl+↓` sends the head pending task to the agent and marks it `- [>]` (in-flight); when the turn settles it becomes `- [x]` (done).
 - Lines indented under a task are continuation lines — they are sent together with their task as one multi-line prompt. A blank, non-indented, or `---` line ends the block.
+- Typed a prompt and realised it should wait? Press `Ctrl+N` with that text still in the input: PlanQueue asks whether to queue it, and accepting drops it in as the **first** task and clears the input. Extra lines become indented continuations, sent with it. Decline and you get the notes editor as usual.
 
 ### Human-in-the-loop barriers
 

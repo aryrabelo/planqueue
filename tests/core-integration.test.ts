@@ -9,6 +9,7 @@ import {
 	legacyNotePathsFor,
 	notePathFor,
 	parseTaskLine,
+	prependQueue,
 	renderWidgetLines,
 	resolveLocation,
 } from "@aryrabelo/planqueue-core";
@@ -40,4 +41,12 @@ test("new heading / spent-queue helpers resolve through the package surface", ()
 	expect(isEmptyOrHeadingOnly("# Topic")).toBe(true);
 	expect(isQueueSpent("- [x] done")).toBe(true);
 	expect(hasDoneTask("- [x] done")).toBe(true);
+});
+
+test("prependQueue puts the draft at the top of the queue", () => {
+	expect(
+		prependQueue("# Topic\n- [x] done\n- [ ] later", [
+			{ prompt: "first", details: ["detail"] },
+		]),
+	).toBe("# Topic\n- [ ] first\n  detail\n- [x] done\n- [ ] later");
 });

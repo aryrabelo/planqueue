@@ -7,21 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-27
+
 ### Added
 
 - Auto session-summary heading: on your first message in a session the note gains a `# <summary>` heading derived from that message (idempotent; skips slash-commands). Bootstrap now fires for empty *or* heading-only notes, and `make_note` never double-heads.
 - Spent-note prompt: after the queue has run and drained, PlanQueue acts once — when all tasks are done (`- [x]`) it asks (confirm) whether to rebuild the note from the session (the `/rebuild-note` flow); otherwise (e.g. only a heading left) it just notifies you to run `/rebuild-note` or `/clear-note`. It never auto-runs the agent without your confirmation.
 - Copy discoverability: the first time you open the notes editor each session, PlanQueue surfaces the `Alt+Shift+C` whole-buffer copy shortcut.
 - Hide toggle: `Ctrl+H` collapses the widget to a single bare `PlanQueue` line and toggles back, for when you want the panel out of the way. The state sticks across session switches.
+- Draft capture: pressing `Ctrl+N` while a prompt is typed but unsent asks whether to queue that draft at the top of the note instead of opening the editor. Accepting turns it into the first `- [ ]` task (extra lines become indented continuations sent with it) and clears the input; declining opens the notes editor as before.
 
 ### Changed
 
 - Auto-run no longer clobbers in-progress typing: while auto-run is on it pauses instead of dispatching the next queue line whenever you have unsent text in the input, resuming once you send it.
 - The below-editor notes widget is now hidden while the notes editor is open, removing the decorated duplicate ("sidebar") that made the note hard to copy.
+- Taller panel: the notes widget now shows up to 20 lines instead of 10. OMP truncates a widget at 10 lines per key, so PlanQueue publishes the panel as consecutive keyed widgets that render back-to-back.
 
 ### Dependencies
 
-- Requires `@aryrabelo/planqueue-core` `^0.2.0` (new `deriveHeading`, `ensureHeadingFromMessage`, `hasHeading`, `hasDoneTask`, `isEmptyOrHeadingOnly`, `isQueueSpent`).
+- Requires `@aryrabelo/planqueue-core` `^0.3.0` (the 20-line `renderWidgetLines` budget, plus `deriveHeading`, `ensureHeadingFromMessage`, `hasHeading`, `hasDoneTask`, `isEmptyOrHeadingOnly`, `isQueueSpent`).
 
 ## [0.1.1] - 2026-07-03
 
@@ -59,5 +63,6 @@ FIFO prompt queue for coding agents.
 
 - Internal iterations preceding the public PlanQueue identity are not tracked here; `0.1.0` is the first release under this name.
 
+[0.2.0]: https://github.com/aryrabelo/planqueue/releases/tag/v0.2.0
 [0.1.1]: https://github.com/aryrabelo/planqueue/releases/tag/v0.1.1
 [0.1.0]: https://github.com/aryrabelo/planqueue/releases/tag/v0.1.0

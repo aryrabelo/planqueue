@@ -1,6 +1,6 @@
 {
 	"name": "@aryrabelo/planqueue",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "PlanQueue: an OMP harness extension that turns a session-notes panel into a FIFO prompt queue for coding agents, persisted per repo/branch/session.",
 	"type": "module",
 	"license": "MIT",
@@ -49,7 +49,7 @@
 		"format": "biome check --write ."
 	},
 	"dependencies": {
-		"@aryrabelo/planqueue-core": "^0.2.0"
+		"@aryrabelo/planqueue-core": "^0.3.0"
 	},
 	"overrides": {
 		"@opentelemetry/core": "^2.8.0"
