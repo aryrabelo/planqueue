@@ -5,7 +5,7 @@
     "": {
       "name": "@aryrabelo/planqueue",
       "dependencies": {
-        "@aryrabelo/planqueue-core": "^0.2.0",
+        "@aryrabelo/planqueue-core": "^0.3.0",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
@@ -32,7 +32,7 @@
 
     "@ark/util": ["@ark/util@0.56.1", "", {}, "sha512-Tp1rTik3q5Z+jAeeDxr5JZpmVIw0miti1ykSEHyZv5Pw3TIJl2xbN6KTacOxITp0l3s9ytlrWd30Zvqcy5vzoQ=="],
 
-    "@aryrabelo/planqueue-core": ["@aryrabelo/planqueue-core@0.2.0", "", {}, "sha512-lE1eJDO2tIvLrNbI5dcNNNxwRe8Mq1MRPPH6KTe2SneEsO0Y1U8dzg7uWdPH6EKqFkueWKXlLu02oAw16cJcpQ=="],
+    "@aryrabelo/planqueue-core": ["@aryrabelo/planqueue-core@0.3.0", "", {}, "sha512-KCctXMXpa8w67utExB3HBgQCmvTN9npntYsXOvEjJl78dxWmCaD5VeM7IHEh0lI8H6OV4S/Cw/QTpKlr/IWDLA=="],
 
     "@babel/helper-string-parser": ["@babel/helper-string-parser@7.29.7", "", {}, "sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw=="],
 

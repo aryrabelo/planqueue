@@ -59,6 +59,7 @@ import type {
 } from "@oh-my-pi/pi-coding-agent";
 import type { KeyId, TUI } from "@oh-my-pi/pi-tui";
 import type { ZodType } from "zod";
+import pkg from "../package.json" with { type: "json" };
 import { createQueue } from "./queue-controller";
 
 const WIDGET_KEY = "planqueue";
@@ -68,7 +69,7 @@ const WIDGET_KEY = "planqueue";
  * widgets — `belowEditor` renders them back-to-back with no spacer, so the seam is invisible.
  */
 const WIDGET_CHUNK = 10;
-/** Total panel budget across all chunks; also the ceiling `renderWidgetLines` clamps to. */
+/** Total panel budget across all chunks; `renderWidgetLines` clamps to this minus 1, leaving room for the version footer line. */
 const WIDGET_MAX_LINES = 20;
 
 /** Widget key for the nth chunk; chunk 0 keeps the bare key so a single-chunk panel is unchanged. */
@@ -594,15 +595,15 @@ export default async function planQueueExtension(
 			return;
 		}
 		const style = widgetStyle(ctx.ui.theme);
-		const shortcut = queueHint(shortcuts, queue.isAuto(), queue.isBlocked());
-		setWidgetLines(
-			ctx,
-			renderWidgetLines(content, {
-				style,
-				shortcut,
-				maxLines: WIDGET_MAX_LINES,
-			}),
-		);
+		const shortcut = `${queueHint(shortcuts, queue.isAuto(), queue.isBlocked())} · Ctrl+H hide`;
+		const lines = renderWidgetLines(content, {
+			style,
+			shortcut,
+			// one line reserved for the version footer pushed below
+			maxLines: WIDGET_MAX_LINES - 1,
+		});
+		lines.push(`${style.indent}${style.hint(`v${pkg.version}`)}`);
+		setWidgetLines(ctx, lines);
 	}
 
 	async function initSession(ctx: ExtensionContext): Promise<void> {
