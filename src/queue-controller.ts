@@ -355,9 +355,18 @@ export function createQueue(deps: QueueDeps): QueueController {
 					);
 				}
 				inflightBead = null;
-				await beads.refreshCache();
-				deps.refresh(ctx);
 			}
+			// Always re-sync in beads mode: the agent may have run `bd` itself during the
+			// turn (or another terminal between turns), and there is no watcher/polling.
+			try {
+				await beads.refreshCache();
+			} catch (err) {
+				ctx.ui.notify(
+					`Failed to refresh bd ready: ${err instanceof Error ? err.message : String(err)}`,
+					"error",
+				);
+			}
+			deps.refresh(ctx);
 			if (auto) await autoAdvanceBeads(event, ctx, beads);
 			return;
 		}
