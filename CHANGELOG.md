@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-09
+
+### Added
+
+- Version footer: the notes widget now shows a dimmed `v<version>` line (read from `package.json`) below the shortcut hint, so you can tell at a glance which build is loaded.
+- Hide-key discoverability: the shortcut hint now lists the hide toggle — `(Ctrl+N · Ctrl+↓ queue · Ctrl+Shift+↓ auto) · Ctrl+H hide` — instead of leaving `Ctrl+H` undocumented.
+
 ## [0.2.0] - 2026-07-27
 
 ### Added
@@ -63,6 +70,7 @@ FIFO prompt queue for coding agents.
 
 - Internal iterations preceding the public PlanQueue identity are not tracked here; `0.1.0` is the first release under this name.
 
+[0.2.1]: https://github.com/aryrabelo/planqueue/releases/tag/v0.2.1
 [0.2.0]: https://github.com/aryrabelo/planqueue/releases/tag/v0.2.0
 [0.1.1]: https://github.com/aryrabelo/planqueue/releases/tag/v0.1.1
 [0.1.0]: https://github.com/aryrabelo/planqueue/releases/tag/v0.1.0

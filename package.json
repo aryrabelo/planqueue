@@ -1,6 +1,6 @@
 {
 	"name": "@aryrabelo/planqueue",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "PlanQueue: an OMP harness extension that turns a session-notes panel into a FIFO prompt queue for coding agents, persisted per repo/branch/session.",
 	"type": "module",
 	"license": "MIT",
