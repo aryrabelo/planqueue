@@ -26,6 +26,7 @@ import type {
 	SessionStopEvent,
 } from "@oh-my-pi/pi-coding-agent";
 import type { KeyId } from "@oh-my-pi/pi-tui";
+import { type Bead, beadDispatchPrompt } from "./beads";
 
 /**
  * Whether a settling turn ended badly, so auto-run must halt instead of feeding
@@ -63,6 +64,18 @@ async function pingHerdr(pi: ExtensionAPI, label: string): Promise<void> {
 	}
 }
 
+/** Hooks for the optional Beads-backed queue source (`bd ready`), used instead of note parsing when present. */
+export interface BeadsQueueHooks {
+	/** Next ready bead to dispatch, or undefined when none are ready. */
+	next: () => Bead | undefined;
+	/** Claim a bead in Beads and remove it from the local ready cache. */
+	claim: (bead: Bead) => Promise<void>;
+	/** Close the bead if it is still open (guards against overwriting an already-closed reason). */
+	settle: (id: string) => Promise<void>;
+	/** Re-fetch the ready-bead cache from `bd ready`. */
+	refreshCache: () => Promise<void>;
+}
+
 /** Dependencies the queue controller needs from the extension factory. */
 export interface QueueDeps {
 	pi: ExtensionAPI;
@@ -84,6 +97,11 @@ export interface QueueDeps {
 	 * notice); this module only detects the drained state. Optional; skipped when absent.
 	 */
 	onDrained?: (ctx: ExtensionContext) => Promise<void>;
+	/**
+	 * Optional Beads-backed queue source. When present, the queue-step key and session_stop
+	 * settle dispatch `bd ready` issues instead of parsing note checkbox lines.
+	 */
+	beads?: BeadsQueueHooks;
 }
 
 /** Public surface of the queue controller used by the factory. */
@@ -91,6 +109,8 @@ export interface QueueController {
 	isAuto: () => boolean;
 	isBlocked: () => boolean;
 	reset: () => void;
+	/** The bead currently in flight (claimed, awaiting settle), or null outside beads mode / when idle. */
+	inflightBead: () => Bead | null;
 }
 
 /** Wire the note-as-prompt-queue and return its control surface. */
@@ -107,6 +127,8 @@ export function createQueue(deps: QueueDeps): QueueController {
 	let drainedHandled = false;
 	// Auto-run is paused because the user has an unsent draft — notify only on the transition.
 	let draftPaused = false;
+	// The bead claimed by the current in-flight turn (beads mode only) — settled on session_stop.
+	let inflightBead: Bead | null = null;
 	function setBlocked(active: boolean, label?: string): void {
 		if (active === blocked) return;
 		blocked = active;
@@ -156,6 +178,28 @@ export function createQueue(deps: QueueDeps): QueueController {
 		await deps.persist(ctx, markInflight(deps.content(), line));
 	}
 
+	/**
+	 * Claim and dispatch a bead (beads mode only): send its prompt as a real user message
+	 * (mirrors `sendPrompt`'s idle-vs-followUp split) and track it as in-flight for settle.
+	 */
+	async function dispatchBead(
+		ctx: ExtensionContext,
+		beads: BeadsQueueHooks,
+		bead: Bead,
+		deliverAs?: "followUp",
+	): Promise<void> {
+		setBlocked(false);
+		usedQueue = true;
+		draftPaused = false;
+		await beads.claim(bead);
+		inflightBead = bead;
+		pi.sendUserMessage(
+			beadDispatchPrompt(bead),
+			deliverAs ? { deliverAs } : undefined,
+		);
+		deps.refresh(ctx);
+	}
+
 	async function haltAtBarrier(ctx: ExtensionContext): Promise<void> {
 		auto = false;
 		setBlocked(true, deps.label());
@@ -186,6 +230,21 @@ export function createQueue(deps: QueueDeps): QueueController {
 		}
 		// A manual queue-step is the human engaging — clear any pause state.
 		setBlocked(false);
+		const beads = deps.beads;
+		if (beads) {
+			const bead = beads.next();
+			if (!bead) {
+				ctx.ui.notify("No ready beads — bd ready is empty", "info");
+				return;
+			}
+			await dispatchBead(
+				ctx,
+				beads,
+				bead,
+				ctx.isIdle() ? undefined : "followUp",
+			);
+			return;
+		}
 		const head = findHead(deps.content());
 		if (head.kind === "empty") {
 			ctx.ui.notify("Note queue is empty", "info");
@@ -211,7 +270,15 @@ export function createQueue(deps: QueueDeps): QueueController {
 		deps.refresh(ctx);
 		ctx.ui.notify(auto ? "Queue auto-run ON" : "Queue auto-run OFF", "info");
 		// Prime: session_stop won't fire while the agent is already idle.
-		if (auto && ctx.isIdle()) await feedIdle(ctx);
+		if (!auto || !ctx.isIdle()) return;
+		const beads = deps.beads;
+		if (beads) {
+			if (hasDraft(ctx)) return pauseForDraft(ctx);
+			const bead = beads.next();
+			if (bead) await dispatchBead(ctx, beads, bead);
+			return;
+		}
+		await feedIdle(ctx);
 	}
 
 	/** In auto-run, advance after a settle: halt on failure/barrier, else feed one task. */
@@ -239,6 +306,24 @@ export function createQueue(deps: QueueDeps): QueueController {
 		await sendPrompt(ctx, head.line, head.text, "followUp");
 	}
 
+	/** In beads mode: same auto-run advance semantics as `autoAdvance`, dispatching a bead instead of a note line. */
+	async function autoAdvanceBeads(
+		event: SessionStopEvent,
+		ctx: ExtensionContext,
+		beads: BeadsQueueHooks,
+	): Promise<void> {
+		if (turnFailed(event)) {
+			auto = false;
+			deps.refresh(ctx);
+			return;
+		}
+		if (deps.editorOpen()) return;
+		const bead = beads.next();
+		if (!bead) return;
+		if (hasDraft(ctx)) return pauseForDraft(ctx);
+		await dispatchBead(ctx, beads, bead, "followUp");
+	}
+
 	/**
 	 * After a settle, invoke `deps.onDrained` once when the queue is spent (only done tasks
 	 * and/or a summary heading remain) AND was actually used (`usedQueue`) — skipped while
@@ -257,6 +342,25 @@ export function createQueue(deps: QueueDeps): QueueController {
 	}
 
 	pi.on("session_stop", async (event, ctx) => {
+		const beads = deps.beads;
+		if (beads) {
+			if (inflightBead !== null) {
+				const finished = inflightBead;
+				try {
+					await beads.settle(finished.id);
+				} catch (err) {
+					ctx.ui.notify(
+						`Failed to close bead ${finished.id}: ${err instanceof Error ? err.message : String(err)}`,
+						"error",
+					);
+				}
+				inflightBead = null;
+				await beads.refreshCache();
+				deps.refresh(ctx);
+			}
+			if (auto) await autoAdvanceBeads(event, ctx, beads);
+			return;
+		}
 		// A settled turn means the in-flight task finished — mark it done (manual or auto).
 		const completed = completeInflight(deps.content());
 		if (completed !== deps.content()) await deps.persist(ctx, completed);
@@ -287,12 +391,14 @@ export function createQueue(deps: QueueDeps): QueueController {
 	return {
 		isAuto: (): boolean => auto,
 		isBlocked: (): boolean => blocked,
+		inflightBead: (): Bead | null => inflightBead,
 		reset: (): void => {
 			auto = false;
 			setBlocked(false);
 			usedQueue = false;
 			drainedHandled = false;
 			draftPaused = false;
+			inflightBead = null;
 		},
 	};
 }

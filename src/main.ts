@@ -60,7 +60,15 @@ import type {
 import type { KeyId, TUI } from "@oh-my-pi/pi-tui";
 import type { ZodType } from "zod";
 import pkg from "../package.json" with { type: "json" };
-import { createQueue } from "./queue-controller";
+import {
+	type Bead,
+	type BeadsRuntime,
+	claimBead,
+	closeBeadIfOpen,
+	fetchReadyBeads,
+	resolveBeadsRuntime,
+} from "./beads";
+import { type BeadsQueueHooks, createQueue } from "./queue-controller";
 
 const WIDGET_KEY = "planqueue";
 /**
@@ -556,6 +564,12 @@ export default async function planQueueExtension(
 	/** Shows the copy-shortcut hint at most once per session, on the first editor open. */
 	let editorHintShown = false;
 	const shortcuts = await loadShortcuts(pi);
+	// Optional Beads-backed queue source (`bd ready`): available for this process when `.beads/`
+	// exists and `bd` is on PATH. `beadsActive` can degrade to false (falling back to note mode)
+	// for the session if a later `bd` invocation fails — see initSession.
+	const beadsRuntime: BeadsRuntime | null = resolveBeadsRuntime(process.cwd());
+	let beadsCache: Bead[] = [];
+	let beadsActive = beadsRuntime !== null;
 
 	pi.setLabel("PlanQueue \u00b7 Notes");
 
@@ -580,6 +594,17 @@ export default async function planQueueExtension(
 		widgetChunks = index;
 	}
 
+	/** Synthesize widget content from ready/in-flight beads instead of the note (beads mode only). */
+	function beadsWidgetContent(): string {
+		const inflight = queue.inflightBead();
+		const lines: string[] = [];
+		if (inflight !== null) lines.push(`- [>] ${inflight.id} ${inflight.title}`);
+		for (const bead of beadsCache) lines.push(`- [ ] ${bead.id} ${bead.title}`);
+		return lines.length > 0
+			? lines.join("\n")
+			: "> No ready beads — bd ready is empty";
+	}
+
 	function refreshWidget(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
 		// While the notes editor is open the editor buffer already shows the note; suppress the
@@ -596,12 +621,15 @@ export default async function planQueueExtension(
 		}
 		const style = widgetStyle(ctx.ui.theme);
 		const shortcut = `${queueHint(shortcuts, queue.isAuto(), queue.isBlocked())} · Ctrl+H hide`;
-		const lines = renderWidgetLines(content, {
-			style,
-			shortcut,
-			// one line reserved for the version footer pushed below
-			maxLines: WIDGET_MAX_LINES - 1,
-		});
+		const lines = renderWidgetLines(
+			beadsActive ? beadsWidgetContent() : content,
+			{
+				style,
+				shortcut,
+				// one line reserved for the version footer pushed below
+				maxLines: WIDGET_MAX_LINES - 1,
+			},
+		);
 		lines.push(`${style.indent}${style.hint(`v${pkg.version}`)}`);
 		setWidgetLines(ctx, lines);
 	}
@@ -611,6 +639,19 @@ export default async function planQueueExtension(
 		queue.reset();
 		bootstrapped = false;
 		editorHintShown = false;
+		if (beadsRuntime !== null) {
+			try {
+				beadsCache = await fetchReadyBeads(beadsRuntime);
+				beadsActive = true;
+			} catch (err) {
+				beadsActive = false;
+				beadsCache = [];
+				ctx.ui.notify(
+					`bd ready failed (${err instanceof Error ? err.message : String(err)}) — PlanQueue is using note mode for this session`,
+					"error",
+				);
+			}
+		}
 		const [repoToplevel, branch] = await Promise.all([
 			runGit(pi, ctx.cwd, ["rev-parse", "--show-toplevel"]),
 			runGit(pi, ctx.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]),
@@ -717,6 +758,28 @@ export default async function planQueueExtension(
 		await openEditor(ctx);
 	}
 
+	const beadsHooks: BeadsQueueHooks | undefined =
+		beadsRuntime !== null
+			? {
+					next: (): Bead | undefined => beadsCache[0],
+					claim: async (bead: Bead): Promise<void> => {
+						await claimBead(beadsRuntime, bead.id);
+						beadsCache = beadsCache.filter((b) => b.id !== bead.id);
+					},
+					settle: async (id: string): Promise<void> => {
+						await closeBeadIfOpen(
+							beadsRuntime,
+							id,
+							"Settled by PlanQueue queue (turn ended without bd close)",
+						);
+						beadsCache = await fetchReadyBeads(beadsRuntime);
+					},
+					refreshCache: async (): Promise<void> => {
+						beadsCache = await fetchReadyBeads(beadsRuntime);
+					},
+				}
+			: undefined;
+
 	const queue = createQueue({
 		pi,
 		content: () => content,
@@ -725,6 +788,9 @@ export default async function planQueueExtension(
 		label: () => (loc ? `${loc.repo}/${loc.branch}` : "PlanQueue queue"),
 		editorOpen: () => editorOpen,
 		shortcuts,
+		get beads(): BeadsQueueHooks | undefined {
+			return beadsActive ? beadsHooks : undefined;
+		},
 		onDrained: async (ctx: ExtensionContext): Promise<void> => {
 			// All tasks done (`- [x]`): ASK whether to rebuild from the session (Yes runs the
 			// agent; No leaves the note and re-checks on a later drain). Anything else spent
@@ -771,7 +837,7 @@ export default async function planQueueExtension(
 	// Bootstrap: when the first turn settles and the note has no actionable tasks yet (empty or
 	// only a heading), ask the agent to populate it with a heading and suggested follow-up tasks.
 	pi.on("session_stop", (_event, _ctx) => {
-		if (bootstrapped || !isEmptyOrHeadingOnly(content)) return;
+		if (beadsActive || bootstrapped || !isEmptyOrHeadingOnly(content)) return;
 		bootstrapped = true;
 		pi.sendUserMessage(BOOTSTRAP_NOTE_PROMPT, { deliverAs: "followUp" });
 	});
