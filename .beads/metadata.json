@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "omp_plan_queue",
+  "project_id": "272b6858-47e9-4410-a191-4caf7f3317cb"
+}

@@ -20,3 +20,9 @@ repo-docs/
 omp-session-*.html
 agent-tools.md
 plans/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
