@@ -814,6 +814,55 @@ export default async function planQueueExtension(
 		},
 	});
 
+	// Manual beads re-sync for the idle gap: the cache already refreshes on session init and
+	// every settle, but while the agent sits idle external `bd` changes only show on demand here.
+	pi.registerCommand("queue-refresh", {
+		description:
+			"Re-sync the Beads ready list (`bd ready`) into the PlanQueue widget",
+		handler: async (
+			_args: string,
+			ctx: ExtensionCommandContext,
+		): Promise<void> => {
+			if (!beadsActive || beadsHooks === undefined) {
+				ctx.ui.notify(
+					"Beads mode off — no .beads/ in cwd or bd not on PATH (restart omp after bd init)",
+					"info",
+				);
+				return;
+			}
+			try {
+				await beadsHooks.refreshCache();
+				refreshWidget(ctx);
+				ctx.ui.notify(
+					`Beads list refreshed — ${beadsCache.length} ready`,
+					"info",
+				);
+			} catch (err) {
+				ctx.ui.notify(
+					`Failed to refresh bd ready: ${err instanceof Error ? err.message : String(err)}`,
+					"error",
+				);
+			}
+		},
+	});
+
+	// Clipboard copy without opening the editor: copies the CURRENT queue view — the note in
+	// note mode, the ready/in-flight beads list in beads mode (same text the widget renders).
+	pi.registerCommand("queue-copy", {
+		description:
+			"Copy the current queue (note, or beads list in beads mode) to the clipboard",
+		handler: (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
+			const text = beadsActive ? beadsWidgetContent() : content;
+			if (text.length === 0) {
+				ctx.ui.notify("Queue is empty — nothing to copy", "info");
+				return Promise.resolve();
+			}
+			copyNoteToClipboard(text);
+			ctx.ui.notify("Queue copied to clipboard", "info");
+			return Promise.resolve();
+		},
+	});
+
 	pi.on("session_start", (_event, ctx) => initSession(ctx));
 
 	pi.on("session_switch", async (_event, ctx) => {

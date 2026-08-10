@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Optional Beads-backed queue source (spike): when the working directory contains a `.beads/` directory and `bd` is on PATH, the prompt queue runs on `bd ready` issues instead of note checkboxes — the widget lists ready beads, `Ctrl+↓` claims the head bead (`bd update --claim`) and dispatches it as a prompt, and settle closes it only if still open (an agent-written evidence reason is never overwritten). Note mode is unchanged when no `.beads/` exists; a failed `bd ready` degrades to note mode with a notification.
+- Optional Beads-backed queue source (spike): when the working directory contains a `.beads/` directory and `bd` is on PATH, the prompt queue runs on `bd ready` issues instead of note checkboxes — the widget lists ready beads, `Ctrl+↓` claims the head bead (`bd update --claim`) and dispatches it as a prompt, and settle closes it only if still open (an agent-written evidence reason is never overwritten). The ready list re-syncs on session init and every settle. Note mode is unchanged when no `.beads/` exists; a failed `bd ready` degrades to note mode with a notification.
+- `/queue-*` command family: `/queue-refresh` re-syncs the beads ready list on demand while the agent sits idle; `/queue-copy` copies the current queue view (the note, or the beads list in beads mode) to the clipboard via OSC 52 without opening the editor.
 
 ## [0.2.1] - 2026-08-09
 
