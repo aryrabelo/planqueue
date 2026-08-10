@@ -7,7 +7,15 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**", "!**/dist", "!**/node_modules"]
+		"includes": [
+			"**",
+			"!**/dist",
+			"!**/node_modules",
+			"!.beads",
+			"!.codex",
+			"!.agents",
+			"!.claude"
+		]
 	},
 	"formatter": {
 		"enabled": true,

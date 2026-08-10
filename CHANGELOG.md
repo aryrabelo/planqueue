@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Optional Beads-backed queue source (spike): when the working directory contains a `.beads/` directory and `bd` is on PATH, the prompt queue runs on `bd ready` issues instead of note checkboxes — the widget lists ready beads, `Ctrl+↓` claims the head bead (`bd update --claim`) and dispatches it as a prompt, and settle closes it only if still open (an agent-written evidence reason is never overwritten). The ready list re-syncs on session init and every settle. Note mode is unchanged when no `.beads/` exists; a failed `bd ready` degrades to note mode with a notification.
-- `/queue-*` command family: `/queue-refresh` re-syncs the beads ready list on demand while the agent sits idle; `/queue-copy` copies the current queue view (the note, or the beads list in beads mode) to the clipboard via OSC 52 without opening the editor.
+- Optional Beads-backed queue source (spike): when a `.beads/` directory exists at the working directory or any ancestor (and a `bd` binary resolves via PATH or absolute fallbacks), the prompt queue runs on `bd ready` issues instead of note checkboxes — the widget lists ready beads, `Ctrl+↓` claims the head bead (`bd update --claim`) and dispatches it as a prompt, and settle closes it only if still open (an agent-written evidence reason is never overwritten). The ready list re-syncs on session init and every settle. Note mode is unchanged when no `.beads/` exists; a failed `bd ready` degrades to note mode with a notification.
+- `/queue-*` command family (renamed from `/note`, `/planqueue`, `/make-note`, `/clear-note`, `/rebuild-note` — no aliases): `/queue-note` (editor + append), `/queue-sessions` (cross-session browser), `/queue-make` (goal → queue plan), `/queue-clear`, `/queue-rebuild`, plus new `/queue-refresh` (re-syncs the beads ready list on demand while the agent sits idle) and `/queue-copy` (copies the current queue view — note, or beads list in beads mode — to the clipboard via OSC 52 without opening the editor).
 
 ## [0.2.1] - 2026-08-09
 

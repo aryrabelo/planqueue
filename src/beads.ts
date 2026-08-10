@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /** A ready-to-work beads issue, trimmed to what the queue widget needs. */
 export interface Bead {
@@ -20,6 +20,7 @@ export interface Bead {
 export interface BeadsRuntime {
 	cwd: string;
 	actor: string;
+	bdPath: string;
 }
 
 /** `bd show --json` may return a bare object or a single-element array. */
@@ -27,21 +28,37 @@ interface BeadShowResult {
 	status: string;
 }
 
+const BD_FALLBACK_PATHS = [
+	"/opt/homebrew/bin/bd",
+	"/usr/local/bin/bd",
+	"/usr/bin/bd",
+];
+
 /**
- * Detects whether `cwd` is a beads-backed repo (`.beads/` present) with the
- * `bd` binary on PATH. Returns `null` when either condition fails, so callers
- * can fall back to the note-based queue without special-casing.
+ * Detects whether `cwd` (or an ancestor) is a beads-backed repo (`.beads/`
+ * present) with the `bd` binary discoverable. Returns `null` when either
+ * condition fails, so callers can fall back to the note-based queue without
+ * special-casing. The returned `cwd` is the ancestor containing `.beads/`,
+ * not the original `cwd`, so spawned `bd` commands run at the repo root.
  */
 export function resolveBeadsRuntime(cwd: string): BeadsRuntime | null {
-	if (!existsSync(join(cwd, ".beads"))) return null;
-	if (Bun.which("bd") === null) return null;
+	let dir = cwd;
+	for (;;) {
+		if (existsSync(join(dir, ".beads"))) break;
+		const parent = dirname(dir);
+		if (parent === dir) return null;
+		dir = parent;
+	}
+	// `Bun.which` misses `bd` in GUI-launched processes whose PATH lacks Homebrew.
+	const bdPath = Bun.which("bd") ?? BD_FALLBACK_PATHS.find(existsSync) ?? null;
+	if (bdPath === null) return null;
 	const actor = process.env.BEADS_ACTOR ?? process.env.USER ?? "planqueue";
-	return { cwd, actor };
+	return { cwd: dir, actor, bdPath };
 }
 
 /** Runs `bd <args>` in `rt.cwd`, returning stdout. Throws on non-zero exit. */
 async function run(rt: BeadsRuntime, args: string[]): Promise<string> {
-	const proc = Bun.spawn(["bd", ...args], {
+	const proc = Bun.spawn([rt.bdPath, ...args], {
 		cwd: rt.cwd,
 		stdout: "pipe",
 		stderr: "pipe",

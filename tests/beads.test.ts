@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
 	beadDispatchPrompt,
 	claimBead,
@@ -44,11 +44,20 @@ if (!hasBd) {
 			expect(resolveBeadsRuntime(plainDir)).toBeNull();
 			const rt = resolveBeadsRuntime(dir);
 			expect(rt).not.toBeNull();
-			expect(rt?.cwd).toBe(dir);
+			expect(rt?.cwd).toBe(resolve(dir));
 			expect(typeof rt?.actor).toBe("string");
+			expect(typeof rt?.bdPath).toBe("string");
 		} finally {
 			await rm(plainDir, { recursive: true, force: true });
 		}
+	});
+
+	test("resolveBeadsRuntime walks up from a nested subdir to the repo root", async () => {
+		const nested = join(dir, "a", "b", "c");
+		await Bun.$`mkdir -p ${nested}`.quiet();
+		const rt = resolveBeadsRuntime(nested);
+		expect(rt).not.toBeNull();
+		expect(rt?.cwd).toBe(resolve(dir));
 	});
 
 	test("fetchReadyBeads, claimBead, closeBeadIfOpen round-trip", async () => {
