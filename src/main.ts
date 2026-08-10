@@ -4,7 +4,7 @@
  * OMP extension: a PlanQueue session-notes panel below the status line.
  * - Shows the latest note in a widget below the editor via
  *   `ctx.ui.setWidget(..., { placement: "belowEditor" })`.
- * - Opens a multi-line editor on `Ctrl+N` or `/note`.
+ * - Opens a multi-line editor on `Ctrl+N` or `/queue-note`.
  * - Runs the note as a prompt queue: `Ctrl+down` sends the next line, a `---`
  *   line is a human-in-the-loop barrier, and `Ctrl+shift+down` toggles auto-run.
  * - Persists to `~/.planqueue/{repo}/{branch}/{session-id}.md` (with a
@@ -340,7 +340,7 @@ function makeNotePrompt(goal: string): string {
 /**
  * Meta-prompt asking the agent to populate a note that has no actionable tasks yet (empty or
  * heading-only) from the session so far. Shared by the empty-note bootstrap (fires once per
- * session) and `/rebuild-note` when the note is already empty.
+ * session) and `/queue-rebuild` when the note is already empty.
  */
 const BOOTSTRAP_NOTE_PROMPT =
 	"The session note has no actionable tasks yet. Based on the conversation so far, please call the make_note tool to:\n" +
@@ -349,7 +349,7 @@ const BOOTSTRAP_NOTE_PROMPT =
 	"Keep the heading concise and the tasks actionable.";
 
 /**
- * Meta-prompt for `/rebuild-note`: the note was just cleared for a rebuild, so ask
+ * Meta-prompt for `/queue-rebuild`: the note was just cleared for a rebuild, so ask
  * the agent to recreate the plan from the WHOLE conversation, keeping only the
  * remaining actionable work. The old note is included verbatim at the end.
  */
@@ -378,7 +378,7 @@ function registerMakeNoteTool(
 		name: "make_note",
 		label: "Make note plan",
 		description:
-			"Write a decomposed prompt-queue plan to the current session's PlanQueue note (the prompt queue). Use after the /make-note command or when the user asks to turn a goal into a queue of prompts. Each step is ONE prompt dispatched in order; put supporting detail in `details` (sent with the prompt as one multi-line message); set `barrierAfter: true` only where the human must review before the queue continues (renders a `---` barrier). Prefer concrete, self-contained prompts.",
+			"Write a decomposed prompt-queue plan to the current session's PlanQueue note (the prompt queue). Use after the /queue-make command or when the user asks to turn a goal into a queue of prompts. Each step is ONE prompt dispatched in order; put supporting detail in `details` (sent with the prompt as one multi-line message); set `barrierAfter: true` only where the human must review before the queue continues (renders a `---` barrier). Prefer concrete, self-contained prompts.",
 		parameters: z.object({
 			heading: z
 				.string()
@@ -462,17 +462,17 @@ interface NoteCommandDeps {
 	resetQueue: () => void;
 }
 
-/** Register the `note`, `planqueue`, `make-note`, `clear-note`, and `rebuild-note` slash commands. */
+/** Register the `queue-note`, `queue-sessions`, `queue-make`, `queue-clear`, and `queue-rebuild` slash commands. */
 function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
-	pi.registerCommand("note", {
+	pi.registerCommand("queue-note", {
 		description:
-			"Edit PlanQueue notes; `/note <text>` appends a prompt-queue line",
+			"Edit PlanQueue notes; `/queue-note <text>` appends a prompt-queue line",
 		handler: (args: string, ctx: ExtensionCommandContext): Promise<void> =>
 			args.trim().length > 0
 				? deps.persist(ctx, appendTask(deps.content(), args))
 				: deps.openEditor(ctx),
 	});
-	pi.registerCommand("planqueue", {
+	pi.registerCommand("queue-sessions", {
 		description:
 			"Browse PlanQueue entries from other sessions in this repo/branch",
 		handler: (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
@@ -488,16 +488,16 @@ function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 				: Promise.resolve();
 		},
 	});
-	pi.registerCommand("make-note", {
+	pi.registerCommand("queue-make", {
 		description:
-			"Turn a goal into a prompt-queue plan written to the note (`/make-note <goal>`)",
+			"Turn a goal into a prompt-queue plan written to the note (`/queue-make <goal>`)",
 		handler: (args: string, _ctx: ExtensionCommandContext): Promise<void> => {
 			const goal = args.trim();
 			if (goal.length > 0) pi.sendUserMessage(makeNotePrompt(goal));
 			return Promise.resolve();
 		},
 	});
-	pi.registerCommand("clear-note", {
+	pi.registerCommand("queue-clear", {
 		description:
 			"Clear the current PlanQueue note (previous version stays in history)",
 		handler: async (
@@ -519,7 +519,7 @@ function registerNoteCommands(pi: ExtensionAPI, deps: NoteCommandDeps): void {
 			ctx.ui.notify("Note cleared (previous version in history)", "info");
 		},
 	});
-	pi.registerCommand("rebuild-note", {
+	pi.registerCommand("queue-rebuild", {
 		description:
 			"Clear the note and ask the agent to rebuild the plan from the whole session",
 		handler: async (
@@ -626,6 +626,7 @@ export default async function planQueueExtension(
 			{
 				style,
 				shortcut,
+				emptyHint: "(empty - press Ctrl+N or /queue-note to write)",
 				// one line reserved for the version footer pushed below
 				maxLines: WIDGET_MAX_LINES - 1,
 			},
@@ -808,7 +809,7 @@ export default async function planQueueExtension(
 				return;
 			}
 			ctx.ui.notify(
-				"Note has no pending tasks — run /rebuild-note to refresh it from this session, or /clear-note to clear it",
+				"Note has no pending tasks — run /queue-rebuild to refresh it from this session, or /queue-clear to clear it",
 				"info",
 			);
 		},
